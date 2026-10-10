@@ -1,0 +1,9 @@
+#!/bin/sh
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+if [ -n "$SKIP_LOCAL_CHECKS" ]; then
+  echo "Skipping local Checkstyle, SpotBugs, and formatter."
+  exit 0
+fi
+cmd.exe //c "$root/.local/quality/run.cmd" -PreCommit
+exit $?
