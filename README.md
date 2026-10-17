@@ -52,8 +52,6 @@ Edit `.local/quality/checkstyle.xml` and `.local/quality/spotbugs-exclude.xml` i
 
 The project `pom.xml` needs a plugins block that ends with the line `    </plugins>`. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
 
-Checkstyle rejects H2, a `@SpringBootTest` that carries a JDBC URL, `@Sql` or `schema.sql` / `data.sql`, a log call that includes a CURP, `java.util.Date` or `Calendar`, Spring Security, and `System.out` / `System.err`. A same-line `NOSONAR` keeps a `java.util.Date` import that a library requires. `lint-tests.ps1` rejects any `.sql` file under `src/test`. `lint-main.ps1` requires exception classes in `commons/exceptions`, properties classes in `config/properties`, an `IName` interface for each service class, and Lombok instead of a trivial getter or setter. It also rejects `new` of a service, repository, controller, or client under `src/main`.
-
 ## Requirements
 
 Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access once to download the formatter jar.

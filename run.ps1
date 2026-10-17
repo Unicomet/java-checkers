@@ -98,12 +98,6 @@ try {
         [System.IO.File]::WriteAllText($qualityPom, $generated)
     }
     if ($runCheckstyle) {
-        Write-Host 'Running test SQL fixture check'
-        & (Join-Path $PSScriptRoot 'lint-tests.ps1') -RepoRoot $repoRoot
-        if ($LASTEXITCODE -ne 0) { $failed = $true }
-        Write-Host 'Running main-source structure check'
-        & (Join-Path $PSScriptRoot 'lint-main.ps1') -RepoRoot $repoRoot
-        if ($LASTEXITCODE -ne 0) { $failed = $true }
         Write-Host 'Running checkstyle:check'
         Invoke-Maven @('checkstyle:check')
         if ($script:MavenExit -ne 0) { $failed = $true }

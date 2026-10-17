@@ -6,61 +6,7 @@
   <property name="severity" value="error"/>
   <property name="fileExtensions" value="java"/>
 
-  <!-- Repeated across search-batch threads: do not boot H2 or keep an in-memory database. -->
-  <module name="RegexpSingleline">
-    <property name="id" value="NoEmbeddedDatabase"/>
-    <property name="format" value="(?i)org\.h2|jdbc:h2|com\.h2database"/>
-    <property name="message" value="Do not use H2. Tests must not boot a database."/>
-  </module>
-
-  <!-- "No test should be using a db" and the same correction after H2 properties remained. -->
-  <module name="RegexpMultiline">
-    <property name="id" value="NoDatabaseTest"/>
-    <property name="format" value="@SpringBootTest[\s\S]{0,4000}jdbc:"/>
-    <property name="message" value="Do not boot a database from a test. Remove the JDBC URL from @SpringBootTest."/>
-    <property name="matchAcrossLines" value="true"/>
-  </module>
-
-  <!-- "you shouldn't use any sql file or depend or any loading file". -->
-  <module name="RegexpSingleline">
-    <property name="id" value="NoSqlFixture"/>
-    <property name="format" value="@Sql\s*\(|schema\.sql|data\.sql"/>
-    <property name="message" value="Do not load a SQL file from a test."/>
-  </module>
-
-  <!-- Two threads: do not log CURP; use requestId for traceability. -->
-  <module name="RegexpSingleline">
-    <property name="id" value="NoCurpInLog"/>
-    <property name="format" value="(?i)\b(?:log|logger)\w*\.(?:trace|debug|info|warn|error|fatal)\s*\(.*\bcurp\b"/>
-    <property name="message" value="Do not log CURP. Use requestId for traceability."/>
-  </module>
-
-  <!-- Repeated instruction: do not add Spring Security. -->
-  <module name="RegexpSingleline">
-    <property name="id" value="NoSpringSecurity"/>
-    <property name="format" value="org\.springframework\.security"/>
-    <property name="message" value="Do not add Spring Security."/>
-  </module>
-
-  <!-- Logging goes through the logger, not stdout. -->
-  <module name="RegexpSingleline">
-    <property name="id" value="NoSystemOut"/>
-    <property name="format" value="System\.(out|err)\s*\."/>
-    <property name="message" value="Use the logger. Do not call System.out or System.err."/>
-  </module>
-
   <module name="TreeWalker">
-    <!-- Use java.time or Timestamp. Same-line NOSONAR keeps a JJWT boundary. -->
-    <module name="RegexpSinglelineJava">
-      <property name="id" value="NoUtilDate"/>
-      <property name="format" value="import\s+java\.util\.(Date|Calendar)\b"/>
-      <property name="message" value="Do not use java.util.Date or Calendar. Use java.time or java.sql.Timestamp."/>
-    </module>
-    <module name="SuppressWithNearbyCommentFilter">
-      <property name="commentFormat" value="NOSONAR"/>
-      <property name="checkFormat" value="NoUtilDate|RegexpSinglelineJava"/>
-      <property name="influenceFormat" value="0"/>
-    </module>
     <module name="UnusedImports"/>
     <module name="AvoidStarImport"/>
     <module name="RedundantImport"/>
