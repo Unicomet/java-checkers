@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $qualityPom = Join-Path $repoRoot '.quality-pom.xml'
 $marker = "    </plugins>"
 
@@ -36,7 +36,7 @@ function Invoke-Maven {
 }
 
 if ($All) {
-    Write-Host 'The formatter only edits changed lines.'
+    Write-Host 'Google Java Format only edits Git-changed line ranges; -All does not expand its scope.'
 }
 
 Set-Location $repoRoot
@@ -68,10 +68,10 @@ try {
     $runSpotbugs = $Tool -eq 'all' -or $Tool -eq 'spotbugs'
 
     if ($runFormat) {
-        Write-Host 'Running formatter on changed lines'
-        $formatArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'format-changed.ps1'), '-Mode', $Mode)
-        if ($PreCommit) { $formatArgs += '-PreCommit' }
-        & powershell.exe @formatArgs
+        Write-Host 'Running Google Java Format on changed lines'
+        $formatArgs = @{ Mode = $Mode }
+        if ($PreCommit) { $formatArgs.PreCommit = $true }
+        & (Join-Path $PSScriptRoot 'format-changed.ps1') @formatArgs
         if ($LASTEXITCODE -ne 0) { $failed = $true }
     }
     if ($runCheckstyle -or $runSpotbugs) {
@@ -119,7 +119,7 @@ finally {
 if ($failed) {
     if ($PreCommit) {
         Write-Host 'Commit blocked. Stage the fixes and commit again.'
-        Write-Host 'To format the changed lines: .\.local\quality\run -Mode apply -PreCommit'
+        Write-Host 'To format the changed lines: ./.local/quality/run -Mode apply -PreCommit'
         Write-Host 'To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.'
     }
     exit 1

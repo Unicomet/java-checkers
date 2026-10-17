@@ -1,6 +1,6 @@
 # Java checkers
 
-Formatter, Checkstyle, and SpotBugs for a Maven project. Setup places them in `.local/quality` and writes a pre-commit hook that runs all three on staged Java files.
+Google Java Format, Checkstyle, and SpotBugs for a Maven project. Setup places them in `.local/quality` and writes a pre-commit hook that runs all three on staged Java files.
 
 ## Set up a project
 
@@ -31,7 +31,20 @@ From the project root:
 .\.local\quality\run -Mode apply -Tool format
 ```
 
+On Linux with PowerShell Core:
+
+```bash
+./.local/quality/run
+./.local/quality/run -Tool format -Mode apply
+```
+
 A commit runs the same three tools on staged files under `src/main/java` and `src/test/java`. A commit with no staged Java files skips them. Skip one commit with `SKIP_LOCAL_CHECKS=1`.
+
+Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, any spillover edits outside those git-changed lines are discarded. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
+
+Normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Pre-commit runs select staged Java files only and reject files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Apply mode leaves changes unstaged so you can review and stage them.
+
+The Google Java Format all-deps jar is downloaded once into `.local/quality/tools/`.
 
 ## Rules for one project
 
@@ -41,4 +54,4 @@ The project `pom.xml` needs a plugins block that ends with the line `    </plugi
 
 ## Requirements
 
-Git, Maven, and a JDK that Maven can run.
+Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access once to download the formatter jar.

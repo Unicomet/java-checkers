@@ -5,5 +5,13 @@ if [ -n "$SKIP_LOCAL_CHECKS" ]; then
   echo "Skipping local Checkstyle, SpotBugs, and formatter."
   exit 0
 fi
-cmd.exe //c "$root/.local/quality/run.cmd" -PreCommit
-exit $?
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -File "$root/.local/quality/run.ps1" -PreCommit
+  exit $?
+fi
+if command -v powershell.exe >/dev/null 2>&1; then
+  cmd.exe //c "$root/.local/quality/run.cmd" -PreCommit
+  exit $?
+fi
+echo "PowerShell (pwsh) is required for local quality checks." >&2
+exit 1

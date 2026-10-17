@@ -1,6 +1,6 @@
-# Edits only changed Java lines. It trims trailing whitespace, makes the indent
-# character match the rest of the file without changing indent width, and splits
-# a line longer than 120 characters at a safe comma or && / ||.
+# Google Java Format on Git-changed line ranges only (not whole files).
+# Spotless cannot limit formatting to lines, so this calls the GJF CLI with --lines.
+# After GJF runs, non-affected lines are restored so GJF --lines spillover cannot rewrite them.
 param(
     [ValidateSet('check', 'apply')]
     [string]$Mode = 'check',
@@ -8,14 +8,38 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$MaxLine = 120
-$IndentSize = 4
+$GjfVersion = '1.24.0'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+Set-Location $repoRoot
 
-function Show-TrailingWhitespace([string]$line) {
-    if ($line -match '^(.*?)([ \t]+)$') {
-        return $Matches[1] + (($Matches[2] -replace ' ', '.' -replace "`t", '>'))
+function Invoke-Git([string[]]$GitArgs) {
+    $saved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $output = @(& git @GitArgs 2>$null | Where-Object { $_ -is [string] -and $_.Length -gt 0 })
+    $script:GitExit = $LASTEXITCODE
+    $ErrorActionPreference = $saved
+    Write-Output -NoEnumerate $output
+}
+
+function Get-JavaPaths([switch]$StagedOnly) {
+    $names = New-Object System.Collections.Generic.List[string]
+    if ($StagedOnly) {
+        $found = Invoke-Git @('-c', 'core.quotepath=false', 'diff', '--cached', '--name-only', '--diff-filter=ACMR')
+        foreach ($name in $found) { $names.Add([string]$name) }
+    } else {
+        $found = Invoke-Git @('-c', 'core.quotepath=false', 'diff', '--name-only', 'HEAD', '--diff-filter=ACMR')
+        foreach ($name in $found) { $names.Add([string]$name) }
+        $found = Invoke-Git @('-c', 'core.quotepath=false', 'ls-files', '--others', '--exclude-standard')
+        foreach ($name in $found) { $names.Add([string]$name) }
     }
-    return $line
+    $java = New-Object System.Collections.Generic.List[string]
+    foreach ($name in $names) {
+        $path = ([string]$name).Replace('\', '/')
+        if ($path -match '^src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/' -and -not $java.Contains($path)) {
+            $java.Add($path)
+        }
+    }
+    Write-Output -NoEnumerate $java.ToArray()
 }
 
 function Get-AffectedLineNumbers([string]$diffText) {
@@ -24,7 +48,7 @@ function Get-AffectedLineNumbers([string]$diffText) {
     foreach ($raw in ($diffText -split "`n")) {
         $raw = $raw.TrimEnd("`r")
         if ($raw.StartsWith('@@')) {
-            $hunk = [regex]::Match($raw, '\+(\d+)')
+            $hunk = [regex]::Match($raw, '\+(\d+)(?:,(\d+))?')
             if ($hunk.Success) { $newLine = [int]$hunk.Groups[1].Value }
             continue
         }
@@ -42,174 +66,122 @@ function Get-AffectedLineNumbers([string]$diffText) {
     Write-Output -NoEnumerate $numbers.ToArray()
 }
 
-function Get-UsesTabs([string[]]$lines) {
-    $tabs = 0
-    $spaces = 0
-    foreach ($line in $lines) {
-        if ($line.StartsWith("`t")) { $tabs++ }
-        elseif ($line.StartsWith('    ')) { $spaces++ }
-    }
-    return ($tabs -gt $spaces)
-}
-
-function Get-LeadingWhitespace([string]$line) {
-    $match = [regex]::Match($line, '^[ \t]*')
-    return $match.Value
-}
-
-function Find-SplitIndex([string]$line) {
-    $limit = [Math]::Min($MaxLine, $line.Length)
-    $inString = $false
-    $inChar = $false
-    $escape = $false
-    $paren = 0
-    $angle = 0
-    $best = -1
-    for ($i = 0; $i -lt $limit; $i++) {
-        $c = $line[$i]
-        if ($escape) { $escape = $false; continue }
-        if ($inString) {
-            if ($c -eq '\') { $escape = $true; continue }
-            if ($c -eq '"') { $inString = $false }
+function Get-FlatIntList($value) {
+    $values = New-Object System.Collections.Generic.List[int]
+    $queue = New-Object System.Collections.Generic.Queue[object]
+    $queue.Enqueue($value)
+    while ($queue.Count -gt 0) {
+        $cur = $queue.Dequeue()
+        if ($null -eq $cur) { continue }
+        if ($cur -is [int] -or $cur -is [long]) {
+            $values.Add([int]$cur)
             continue
         }
-        if ($inChar) {
-            if ($c -eq '\') { $escape = $true; continue }
-            if ($c -eq "'") { $inChar = $false }
+        if ($cur -is [string]) {
+            if ($cur.Length -gt 0) { $values.Add([int]$cur) }
             continue
         }
-        if ($c -eq '"') { $inString = $true; continue }
-        if ($c -eq "'") { $inChar = $true; continue }
-        if (($i + 1) -lt $line.Length -and $c -eq '/' -and $line[$i + 1] -eq '/') { break }
-        if ($c -eq '(' -or $c -eq '[') { $paren++; continue }
-        if ($c -eq ')' -or $c -eq ']') { if ($paren -gt 0) { $paren-- }; continue }
-        if ($c -eq '<') {
-            $next = if (($i + 1) -lt $line.Length) { $line[$i + 1] } else { [char]0 }
-            if ($next -ne '=') { $angle++ }
+        if ($cur -is [System.Array] -or ($cur -is [System.Collections.IEnumerable] -and $cur -isnot [string])) {
+            foreach ($item in $cur) { $queue.Enqueue($item) }
             continue
         }
-        if ($c -eq '>') {
-            $previous = if ($i -gt 0) { $line[$i - 1] } else { [char]0 }
-            $next = if (($i + 1) -lt $line.Length) { $line[$i + 1] } else { [char]0 }
-            if ($previous -ne '-' -and $next -ne '=' -and $angle -gt 0) { $angle-- }
+        $values.Add([int]$cur)
+    }
+    return $values
+}
+
+function ConvertTo-LineRanges($lineNumbers) {
+    $ranges = New-Object System.Collections.Generic.List[string]
+    $values = Get-FlatIntList $lineNumbers
+    if ($values.Count -eq 0) { return @() }
+    $sorted = @($values | Sort-Object -Unique)
+    $start = [int]$sorted[0]
+    $prev = [int]$sorted[0]
+    for ($i = 1; $i -lt $sorted.Count; $i++) {
+        $n = [int]$sorted[$i]
+        if ($n -eq ($prev + 1)) {
+            $prev = $n
             continue
         }
-        if ($paren -gt 0 -and $angle -eq 0 -and $c -eq ',') {
-            $tail = $line.Substring($i + 1).Trim()
-            if ($tail.Length -gt 0 -and $tail -notmatch '^[\}\)\];]+$') { $best = $i + 1 }
-        }
-        if (($i + 4) -le $line.Length) {
-            $op = $line.Substring($i, 4)
-            if ($op -eq ' && ' -or $op -eq ' || ') { $best = $i + 1 }
-        }
+        $ranges.Add("${start}:${prev}")
+        $start = $n
+        $prev = $n
     }
-    if ($best -le (Get-LeadingWhitespace $line).Length) { return -1 }
-    return $best
+    $ranges.Add("${start}:${prev}")
+    return $ranges
 }
 
-function Split-LongLine([string]$line, [bool]$useTabs) {
-    $pieces = New-Object System.Collections.Generic.List[string]
-    $current = $line
-    for ($guard = 0; $guard -lt 8 -and $current.Length -gt $MaxLine; $guard++) {
-        $comment = [regex]::Match($current, '^([ \t]*)(//[ ]?|\*[ ]+)(.*)$')
-        if ($comment.Success) {
-            $prefix = $comment.Groups[1].Value + $comment.Groups[2].Value
-            $room = $MaxLine - $prefix.Length
-            if ($room -lt 20) { break }
-            $window = [Math]::Min($MaxLine, $current.Length)
-            $space = $current.LastIndexOf(' ', ($window - 1))
-            if ($space -le $prefix.Length) { break }
-            $pieces.Add($current.Substring(0, $space).TrimEnd())
-            $current = $prefix + $current.Substring($space + 1).TrimStart()
-            continue
-        }
-        $splitAt = Find-SplitIndex $current
-        if ($splitAt -lt 0) { break }
-        $head = $current.Substring(0, $splitAt).TrimEnd()
-        $tail = $current.Substring($splitAt).TrimStart()
-        if ($head.Length -eq 0 -or $tail.Length -eq 0) { break }
-        $pieces.Add($head)
-        $extra = if ($useTabs) { "`t" } else { ' ' * $IndentSize }
-        $current = (Get-LeadingWhitespace $head) + $extra + $tail
+function Get-GjfJar {
+    $toolsDir = Join-Path $PSScriptRoot 'tools'
+    if (-not (Test-Path -LiteralPath $toolsDir)) {
+        New-Item -ItemType Directory -Path $toolsDir | Out-Null
     }
-    $pieces.Add($current)
-    Write-Output -NoEnumerate $pieces.ToArray()
+    $jarName = "google-java-format-$GjfVersion-all-deps.jar"
+    $jarPath = Join-Path $toolsDir $jarName
+    if (-not (Test-Path -LiteralPath $jarPath)) {
+        $url = "https://github.com/google/google-java-format/releases/download/v$GjfVersion/$jarName"
+        Write-Host "Downloading $jarName"
+        Invoke-WebRequest -Uri $url -OutFile $jarPath
+    }
+    return $jarPath
 }
 
-function Format-ChangedLine([string]$line, [bool]$useTabs) {
-    $match = [regex]::Match($line, '^([ \t]*)(.*)$')
-    $indentRaw = $match.Groups[1].Value
-    $rest = $match.Groups[2].Value.TrimEnd()
-    if ($rest.Length -eq 0) {
-        Write-Output -NoEnumerate @('')
-        return
-    }
-    $cols = 0
-    foreach ($ch in $indentRaw.ToCharArray()) {
-        if ($ch -eq "`t") { $cols += $IndentSize } else { $cols++ }
-    }
-    if ($useTabs) {
-        $tabs = [int][Math]::Floor($cols / $IndentSize)
-        $indent = ("`t" * $tabs) + (' ' * ($cols % $IndentSize))
-    } else {
-        $indent = ' ' * $cols
-    }
-    Write-Output -NoEnumerate (Split-LongLine ($indent + $rest) $useTabs)
+function Get-FileText([string]$path) {
+    return [System.IO.File]::ReadAllText($path)
 }
 
-function Get-FormattedFileLines([string[]]$fileLines, [int[]]$affected) {
-    $useTabs = Get-UsesTabs $fileLines
-    $selected = @{}
-    foreach ($number in $affected) {
-        if ($number -ge 1 -and $number -le $fileLines.Count) { $selected[$number] = $true }
-    }
-    $updated = New-Object System.Collections.Generic.List[string]
-    for ($index = 0; $index -lt $fileLines.Count; $index++) {
-        if (-not $selected.ContainsKey($index + 1)) {
-            $updated.Add($fileLines[$index])
-            continue
-        }
-        $formatted = Format-ChangedLine $fileLines[$index] $useTabs
-        foreach ($piece in $formatted) {
-            $updated.Add([string]$piece)
-        }
-    }
-    Write-Output -NoEnumerate $updated.ToArray()
+function Write-FileText([string]$path, [string]$text) {
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($path, $text, $utf8)
 }
 
-if ($MyInvocation.InvocationName -eq '.') { return }
-
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-Set-Location $repoRoot
-
-function Invoke-Git([string[]]$GitArgs) {
-    $saved = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $output = @(& git @GitArgs 2>$null | Where-Object { $_ -is [string] -and $_.Length -gt 0 })
-    $script:GitExit = $LASTEXITCODE
-    $ErrorActionPreference = $saved
-    Write-Output -NoEnumerate $output
+function Get-Newline([string]$text) {
+    if ($text.Contains("`r`n")) { return "`r`n" }
+    return "`n"
 }
 
-function Get-JavaPaths([switch]$StagedOnly) {
-    $names = New-Object System.Collections.Generic.List[string]
-    if ($StagedOnly) {
-        $found = Invoke-Git @('diff', '--cached', '--name-only', '--diff-filter=ACMR')
-        foreach ($name in $found) { $names.Add([string]$name) }
-    } else {
-        $found = Invoke-Git @('diff', '--name-only', 'HEAD', '--diff-filter=ACMR')
-        foreach ($name in $found) { $names.Add([string]$name) }
-        $found = Invoke-Git @('ls-files', '--others', '--exclude-standard')
-        foreach ($name in $found) { $names.Add([string]$name) }
+function Split-FileLines([string]$text) {
+    $newline = Get-Newline $text
+    $normalized = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    $hasFinalNewline = $normalized.EndsWith("`n")
+    $body = $normalized.TrimEnd("`n")
+    $lines = @()
+    if ($body.Length -gt 0) {
+        $lines = $body.Split([char]10)
     }
-    $java = New-Object System.Collections.Generic.List[string]
-    foreach ($name in $names) {
-        $path = $name.Trim().Replace('\', '/')
-        if ($path -match '^src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/' -and -not $java.Contains($path)) {
-            $java.Add($path)
+    return @{
+        Lines = $lines
+        Newline = $newline
+        HasFinalNewline = $hasFinalNewline
+    }
+}
+
+function Join-FileLines([string[]]$lines, [string]$newline, [bool]$hasFinalNewline) {
+    $text = [string]::Join($newline, $lines)
+    if ($hasFinalNewline) { $text += $newline }
+    return $text
+}
+
+# Keep GJF output only on affected lines when line count is unchanged.
+# If GJF splits/merges lines, fall back to the full GJF result for that file.
+function Limit-FormatToAffectedLines([string]$beforeText, [string]$afterText, $affectedLines) {
+    $before = Split-FileLines $beforeText
+    $after = Split-FileLines $afterText
+    if ($before.Lines.Count -ne $after.Lines.Count) {
+        return $afterText
+    }
+    $affected = @{}
+    foreach ($n in (Get-FlatIntList $affectedLines)) { $affected[[int]$n] = $true }
+    $merged = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $before.Lines.Count; $i++) {
+        $lineNo = $i + 1
+        if ($affected.ContainsKey($lineNo)) {
+            $merged.Add([string]$after.Lines[$i])
+        } else {
+            $merged.Add([string]$before.Lines[$i])
         }
     }
-    Write-Output -NoEnumerate $java.ToArray()
+    return (Join-FileLines $merged.ToArray() $before.Newline $before.HasFinalNewline)
 }
 
 $paths = Get-JavaPaths -StagedOnly:$PreCommit
@@ -218,69 +190,95 @@ if ($null -eq $paths -or $paths.Count -eq 0) {
     exit 0
 }
 
-$failed = $false
 foreach ($relative in $paths) {
-    $full = Join-Path $repoRoot ($relative.Replace('/', '\'))
-    if (-not (Test-Path -LiteralPath $full)) { continue }
-    Invoke-Git @('ls-files', '--error-unmatch', '--', $relative) | Out-Null
-    $untracked = $script:GitExit -ne 0
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $relative) -PathType Leaf)) {
+        throw "Selected Java file does not exist: $relative"
+    }
     if ($PreCommit) {
         $unstaged = Invoke-Git @('diff', '--name-only', '--', $relative)
         if ($unstaged.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$unstaged[0])) {
-            Write-Host "$relative has edits that are not staged. Stage the file, then commit again."
-            $failed = $true
-            continue
+            throw "$relative has edits that are not staged. Stage the file, then commit again."
         }
-    }
-
-    $raw = [System.IO.File]::ReadAllText($full)
-    $newline = if ($raw.Contains("`r`n")) { "`r`n" } else { "`n" }
-    $normalized = $raw.Replace("`r`n", "`n").Replace("`r", "`n")
-    $hasFinalNewline = $normalized.EndsWith("`n")
-    $body = $normalized.TrimEnd("`n")
-    $fileLines = @()
-    if ($body.Length -gt 0) { $fileLines = @($body -split "`n", -1) }
-
-    if ($untracked) {
-        if ($fileLines.Count -eq 0) { continue }
-        $affected = [int[]](1..$fileLines.Count)
-    } else {
-        $diffArgs = @('diff', '-U0', '--', $relative)
-        if ($PreCommit) { $diffArgs = @('diff', '--cached', '-U0', '--', $relative) }
-        $diffLines = Invoke-Git $diffArgs
-        $affected = Get-AffectedLineNumbers (($diffLines | ForEach-Object { [string]$_ }) -join "`n")
-    }
-    if ($null -eq $affected -or $affected.Count -eq 0) { continue }
-
-    $updated = Get-FormattedFileLines $fileLines $affected
-    if ($updated -is [string]) { $updated = @($updated) }
-    $rebuilt = [string]::Join($newline, [string[]]$updated)
-    if ($hasFinalNewline) { $rebuilt += $newline }
-    if ([string]::Equals($rebuilt, $raw, [StringComparison]::Ordinal)) { continue }
-
-    $failed = $true
-    Write-Host $relative
-    $shown = 0
-    $useTabs = Get-UsesTabs $fileLines
-    for ($index = 0; $index -lt $fileLines.Count; $index++) {
-        if ($affected -notcontains ($index + 1)) { continue }
-        $formatted = Format-ChangedLine $fileLines[$index] $useTabs
-        $oldLine = $fileLines[$index]
-        $same = $formatted.Count -eq 1 -and [string]::Equals([string]$formatted[0], $oldLine, [StringComparison]::Ordinal)
-        if ($same) { continue }
-        if ($shown -ge 8) { Write-Host '  ...'; break }
-        Write-Host ("  - {0}" -f (Show-TrailingWhitespace $oldLine))
-        foreach ($piece in $formatted) {
-            Write-Host ("  + {0}" -f (Show-TrailingWhitespace ([string]$piece)))
-        }
-        $shown++
-    }
-    if ($Mode -eq 'apply') {
-        $utf8 = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText($full, $rebuilt, $utf8)
-        Write-Host '  applied'
     }
 }
 
-if ($failed -and $Mode -eq 'check') { exit 1 }
+$jar = Get-GjfJar
+$failed = $false
+$formattedFiles = 0
+
+foreach ($relative in $paths) {
+    $full = Join-Path $repoRoot $relative
+    Invoke-Git @('ls-files', '--error-unmatch', '--', $relative) | Out-Null
+    $untracked = $script:GitExit -ne 0
+
+    $beforeText = Get-FileText $full
+    $beforeInfo = Split-FileLines $beforeText
+
+    $affected = @()
+    $ranges = @()
+    if ($untracked) {
+        if ($beforeInfo.Lines.Count -lt 1) { continue }
+        $affected = @(1..$beforeInfo.Lines.Count)
+        $ranges = @("1:$($beforeInfo.Lines.Count)")
+    } else {
+        $diffArgs = @('-c', 'core.quotepath=false', 'diff', '-U0', '--', $relative)
+        if ($PreCommit) {
+            $diffArgs = @('-c', 'core.quotepath=false', 'diff', '--cached', '-U0', '--', $relative)
+        }
+        $diffLines = Invoke-Git $diffArgs
+        $affected = Get-FlatIntList (Get-AffectedLineNumbers (($diffLines | ForEach-Object { [string]$_ }) -join "`n"))
+        if ($affected.Count -eq 0) { continue }
+        $ranges = ConvertTo-LineRanges $affected
+    }
+    if ($ranges.Count -eq 0) { continue }
+
+    $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("gjf-" + [guid]::NewGuid().ToString('N') + '.java')
+    try {
+        Write-FileText $temp $beforeText
+
+        $gjfArgs = New-Object System.Collections.Generic.List[string]
+        $gjfArgs.Add('-jar')
+        $gjfArgs.Add($jar)
+        $gjfArgs.Add('--skip-sorting-imports')
+        $gjfArgs.Add('--skip-removing-unused-imports')
+        foreach ($range in $ranges) {
+            $gjfArgs.Add('--lines=' + $range)
+        }
+        $gjfArgs.Add('--replace')
+        $gjfArgs.Add($temp)
+
+        Write-Host ("Formatting {0} line range(s) in {1}" -f $ranges.Count, $relative)
+        & java @($gjfArgs.ToArray())
+        if ($LASTEXITCODE -ne 0) {
+            $failed = $true
+            continue
+        }
+
+        $afterText = Get-FileText $temp
+        $limited = Limit-FormatToAffectedLines $beforeText $afterText $affected
+        $changed = -not [string]::Equals($limited, $beforeText, [StringComparison]::Ordinal)
+
+        if ($Mode -eq 'check') {
+            if ($changed) {
+                Write-Host $relative
+                $failed = $true
+            }
+        } else {
+            if ($changed) {
+                Write-FileText $full $limited
+                Write-Host '  applied'
+                $formattedFiles++
+            }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+    }
+}
+
+if ($Mode -eq 'apply') {
+    Write-Host ("Google Java Format apply finished on {0} file(s)." -f $formattedFiles)
+}
+
+if ($failed) { exit 1 }
 exit 0
