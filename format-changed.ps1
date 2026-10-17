@@ -9,8 +9,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $GjfVersion = '1.24.0'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-Set-Location $repoRoot
 
 function Invoke-Git([string[]]$GitArgs) {
     $saved = $ErrorActionPreference
@@ -147,7 +145,8 @@ function Split-FileLines([string]$text) {
     $body = $normalized.TrimEnd("`n")
     $lines = @()
     if ($body.Length -gt 0) {
-        $lines = $body.Split([char]10)
+        # Keep a one-line file as a one-element array. PowerShell unwraps a single Split result.
+        $lines = @($body.Split([char]10))
     }
     return @{
         Lines = $lines
@@ -162,27 +161,98 @@ function Join-FileLines([string[]]$lines, [string]$newline, [bool]$hasFinalNewli
     return $text
 }
 
-# Keep GJF output only on affected lines when line count is unchanged.
-# If GJF splits/merges lines, fall back to the full GJF result for that file.
+function Get-DiffHunks([string]$beforeText, [string]$afterText) {
+    $dir = Join-Path ([System.IO.Path]::GetTempPath()) ("gjf-diff-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    try {
+        $beforePath = Join-Path $dir 'before.java'
+        $afterPath = Join-Path $dir 'after.java'
+        Write-FileText $beforePath $beforeText
+        Write-FileText $afterPath $afterText
+        $diffLines = Invoke-Git @(
+            '-c', 'core.quotepath=false',
+            '-c', 'core.attributesFile=/dev/null',
+            'diff', '--no-index', '--text', '-U0', '--', $beforePath, $afterPath)
+        $hunks = New-Object System.Collections.Generic.List[object]
+        foreach ($raw in $diffLines) {
+            $line = [string]$raw
+            if ($line -notmatch '^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@') { continue }
+            $oldCount = 1
+            $newCount = 1
+            if ($Matches[2] -ne $null -and $Matches[2] -ne '') { $oldCount = [int]$Matches[2] }
+            if ($Matches[4] -ne $null -and $Matches[4] -ne '') { $newCount = [int]$Matches[4] }
+            $hunks.Add([pscustomobject]@{
+                OldStart = [int]$Matches[1]
+                OldCount = $oldCount
+                NewCount = $newCount
+            })
+        }
+        return $hunks
+    }
+    finally {
+        Remove-Item -LiteralPath $dir -Recurse -Force
+    }
+}
+
+# Keep a GJF edit only when its old-file hunk overlaps a git-changed line.
+# A split or merge changes the line count; that must not accept rewrites of other lines.
 function Limit-FormatToAffectedLines([string]$beforeText, [string]$afterText, $affectedLines) {
     $before = Split-FileLines $beforeText
     $after = Split-FileLines $afterText
-    if ($before.Lines.Count -ne $after.Lines.Count) {
-        return $afterText
-    }
     $affected = @{}
     foreach ($n in (Get-FlatIntList $affectedLines)) { $affected[[int]$n] = $true }
+    $hunks = @(Get-DiffHunks $beforeText $afterText)
+    if ($hunks.Count -eq 0) { return $beforeText }
+
+    $oldPos = 0
+    $newPos = 0
     $merged = New-Object System.Collections.Generic.List[string]
-    for ($i = 0; $i -lt $before.Lines.Count; $i++) {
-        $lineNo = $i + 1
-        if ($affected.ContainsKey($lineNo)) {
-            $merged.Add([string]$after.Lines[$i])
-        } else {
-            $merged.Add([string]$before.Lines[$i])
+    foreach ($hunk in $hunks) {
+        $hunkOldIndex = $hunk.OldStart - 1
+        if ($hunk.OldCount -eq 0) { $hunkOldIndex = $hunk.OldStart }
+        if ($hunkOldIndex -lt $oldPos) {
+            throw "Overlapping diff hunk at old line $($hunk.OldStart)."
         }
+        while ($oldPos -lt $hunkOldIndex) {
+            $merged.Add([string]$before.Lines[$oldPos])
+            $oldPos++
+            $newPos++
+        }
+        $keepNew = $false
+        if ($hunk.OldCount -eq 0) {
+            $keepNew = $affected.ContainsKey([int]$hunk.OldStart) -or $affected.ContainsKey([int]$hunk.OldStart + 1)
+        } else {
+            for ($n = [int]$hunk.OldStart; $n -lt ([int]$hunk.OldStart + [int]$hunk.OldCount); $n++) {
+                if ($affected.ContainsKey($n)) { $keepNew = $true; break }
+            }
+        }
+        if ($keepNew) {
+            for ($i = 0; $i -lt [int]$hunk.NewCount; $i++) {
+                $merged.Add([string]$after.Lines[$newPos])
+                $newPos++
+            }
+            $oldPos += [int]$hunk.OldCount
+        } else {
+            for ($i = 0; $i -lt [int]$hunk.OldCount; $i++) {
+                $merged.Add([string]$before.Lines[$oldPos])
+                $oldPos++
+            }
+            $newPos += [int]$hunk.NewCount
+        }
+    }
+    while ($oldPos -lt $before.Lines.Count) {
+        $merged.Add([string]$before.Lines[$oldPos])
+        $oldPos++
     }
     return (Join-FileLines $merged.ToArray() $before.Newline $before.HasFinalNewline)
 }
+
+if ($MyInvocation.InvocationName -eq '.') {
+    return
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+Set-Location $repoRoot
 
 $paths = Get-JavaPaths -StagedOnly:$PreCommit
 if ($null -eq $paths -or $paths.Count -eq 0) {

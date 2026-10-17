@@ -40,7 +40,7 @@ On Linux with PowerShell Core:
 
 A commit runs the same three tools on staged files under `src/main/java` and `src/test/java`. A commit with no staged Java files skips them. Skip one commit with `SKIP_LOCAL_CHECKS=1`.
 
-Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, any spillover edits outside those git-changed lines are discarded. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
+Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, spillover outside those git-changed lines is discarded, including when a formatted line splits or merges and the line count changes. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
 
 Normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Pre-commit runs select staged Java files only and reject files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Apply mode leaves changes unstaged so you can review and stage them.
 
