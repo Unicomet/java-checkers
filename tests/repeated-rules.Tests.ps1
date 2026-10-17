@@ -108,6 +108,78 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host 'PASS clean test tree'
 
+$date = @'
+import java.util.Date;
+class DateBad {}
+'@
+$dateOk = @'
+import java.util.Date; // NOSONAR: JJWT boundary
+class DateOk {}
+'@
+$security = @'
+import org.springframework.security.core.context.SecurityContextHolder;
+class SecurityBad {}
+'@
+$stdout = @'
+class OutBad {
+    void run() { System.out.println("id"); }
+}
+'@
+Assert-Checkstyle 'util date fails' (Write-Java 'src/main/java/DateBad.java' $date) 'Do not use java.util.Date' $true
+Assert-Checkstyle 'nosonar date passes' (Write-Java 'src/main/java/DateOk.java' $dateOk) 'Do not use java.util.Date' $false
+Assert-Checkstyle 'spring security fails' (Write-Java 'src/main/java/SecurityBad.java' $security) 'Do not add Spring Security' $true
+Assert-Checkstyle 'system out fails' (Write-Java 'src/main/java/OutBad.java' $stdout) 'Use the logger' $true
+
+$jwt = '/home/memo-pc-linux/Projects/mx-pri-pui-report-service/src/main/java/mx/com/cardif/pui/reports/service/impl/JwtService.java'
+if (Test-Path -LiteralPath $jwt) {
+    Assert-Checkstyle 'jjwt date boundary passes' $jwt 'Do not use java.util.Date' $false
+}
+$stdoutReal = '/home/memo-pc-linux/Projects/mx-pri-pui-report-service/src/main/java/mx/com/cardif/pui/reports/service/impl/ReportService.java'
+if (Test-Path -LiteralPath $stdoutReal) {
+    Assert-Checkstyle 'past system out fails' $stdoutReal 'Use the logger' $true
+}
+
+$structure = Join-Path $work 'structure'
+$badMain = Join-Path $structure 'src/main/java/mx/com/cardif/pui/reports/service'
+$goodMain = Join-Path $structure 'src/main/java/mx/com/cardif/pui/reports/commons/exceptions'
+$propBad = Join-Path $structure 'src/main/java/mx/com/cardif/pui/reports/config'
+$propGood = Join-Path $structure 'src/main/java/mx/com/cardif/pui/reports/config/properties'
+New-Item -ItemType Directory -Path $badMain, $goodMain, $propBad, $propGood -Force | Out-Null
+Set-Content (Join-Path $badMain 'ReportListException.java') 'public class ReportListException extends RuntimeException {}'
+Set-Content (Join-Path $goodMain 'OkException.java') 'public class OkException extends RuntimeException {}'
+Set-Content (Join-Path $propBad 'NotificationProperties.java') 'public class NotificationProperties {}'
+Set-Content (Join-Path $propGood 'JobProperties.java') 'import lombok.Getter; public class JobProperties {}'
+Set-Content (Join-Path $badMain 'ReportService.java') @'
+public class ReportService {
+    public ReportService() { new HelperService(); }
+    public String getName() { return name; }
+    private String name;
+}
+'@
+Set-Content (Join-Path $badMain 'INotTheRightName.java') 'public interface INotTheRightName {}'
+& (Join-Path $root 'lint-main.ps1') -RepoRoot $structure
+if ($LASTEXITCODE -eq 0) {
+    Write-Host 'FAIL structure rules allowed the bad tree'
+    exit 1
+}
+Write-Host 'PASS structure rules fail the bad tree'
+
+$onlyGood = Join-Path $work 'structure-good'
+$g1 = Join-Path $onlyGood 'src/main/java/mx/com/cardif/pui/reports/commons/exceptions'
+$g2 = Join-Path $onlyGood 'src/main/java/mx/com/cardif/pui/reports/config/properties'
+$g3 = Join-Path $onlyGood 'src/main/java/mx/com/cardif/pui/reports/service'
+New-Item -ItemType Directory -Path $g1, $g2, $g3 -Force | Out-Null
+Set-Content (Join-Path $g1 'OkException.java') 'public class OkException extends RuntimeException {}'
+Set-Content (Join-Path $g2 'JobProperties.java') 'import lombok.Getter; @Getter public class JobProperties { private String name; }'
+Set-Content (Join-Path $g3 'IReportService.java') 'public interface IReportService {}'
+Set-Content (Join-Path $g3 'ReportService.java') 'public class ReportService implements IReportService {}'
+& (Join-Path $root 'lint-main.ps1') -RepoRoot $onlyGood
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'FAIL clean structure tree'
+    exit 1
+}
+Write-Host 'PASS clean structure tree'
+
 Remove-Item -LiteralPath $work -Recurse -Force
 Write-Host 'All repeated-rule checks passed.'
 exit 0
