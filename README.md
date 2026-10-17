@@ -52,6 +52,8 @@ Edit `.local/quality/checkstyle.xml` and `.local/quality/spotbugs-exclude.xml` i
 
 The project `pom.xml` needs a plugins block that ends with the line `    </plugins>`. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
 
+Checkstyle rejects H2, a `@SpringBootTest` that carries a JDBC URL, `@Sql` or `schema.sql` / `data.sql`, and a log call that includes a CURP. `lint-tests.ps1` rejects any `.sql` file under `src/test`.
+
 ## Requirements
 
 Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access once to download the formatter jar.
