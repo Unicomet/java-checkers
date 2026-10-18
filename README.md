@@ -73,3 +73,13 @@ The project `pom.xml` needs a plugins block that ends with the line `    </plugi
 ## Requirements
 
 Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access once to download the formatter jar.
+
+## Verify the checker scripts
+
+```bash
+pwsh -NoProfile -File tests/format-changed.Tests.ps1
+python3 tests/setup-and-hook.Tests.py
+python3 tests/spotbugs-staged.Tests.py
+```
+
+The setup test uses a Maven stub. The SpotBugs regression test runs real Maven in a temporary project, verifies a staged nested-class violation blocks the check, and verifies an unstaged class with the same violation is ignored. It needs the tools listed above and access to Maven dependencies.

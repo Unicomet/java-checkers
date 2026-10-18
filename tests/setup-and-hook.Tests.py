@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='java-checkers-') as temp:
         run(str(runner), '-PreCommit', '-Tool', tool, cwd=project, env=env)
         xml = (root / 'captured.xml').read_text()
         assert '<includes>demo/Example.java</includes>' in xml
-        assert '<onlyAnalyze>demo.Example,demo.Example$*</onlyAnalyze>' in xml
+        assert '<onlyAnalyze>demo.Example,demo.Example$[^/]*</onlyAnalyze>' in xml
         assert not (project / '.quality-pom.xml').exists()
         failed = run(str(runner), '-PreCommit', '-Tool', tool, cwd=project, env=dict(env, QUALITY_EXIT='1'), ok=False)
         assert failed.returncode != 0

@@ -91,7 +91,8 @@ try {
             $classNames = ($javaFiles | ForEach-Object {
                 $className = $_ -replace '^src/(main|test)/java/', '' -replace '/', '.' -replace '\.java$', ''
                 $className
-                $className + '$*'
+                # SpotBugs uses a regex here: $* repeats the dollar sign, not the class suffix.
+                $className + '$[^/]*'
             }) -join ','
             $snippet = $snippet.Replace(
                 '<includeTests>false</includeTests>',
