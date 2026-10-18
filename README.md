@@ -68,7 +68,7 @@ The Google Java Format all-deps jar is downloaded once into `.local/quality/tool
 
 Edit `.local/quality/checkstyle.xml` and `.local/quality/spotbugs-exclude.xml` in that project's clone. Commit those edits in the checker clone when you want to keep them. Other projects stay on their own clone and tag.
 
-The project `pom.xml` needs a plugins block that ends with the line `    </plugins>`. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
+The runner adds the tool plugins to a temporary copy of the project `pom.xml`, regardless of indentation, and creates the build/plugins block if needed. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
 
 ## Requirements
 

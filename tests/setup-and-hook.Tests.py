@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 SOURCE = Path(__file__).resolve().parents[1]
 
@@ -57,6 +58,23 @@ with tempfile.TemporaryDirectory(prefix='java-checkers-') as temp:
     java.write_text(java.read_text() + '// unstaged\n')
     result = run(str(runner), '-PreCommit', '-Tool', 'checkstyle', cwd=project, env=env, ok=False)
     assert result.returncode != 0 and 'not staged' in result.stderr
+    # Maven POM indentation must not determine whether tools can run.
+    java.write_text('package demo;\nclass Example { int value; }\n')
+    for closing in ('\t\t</plugins>', '        </plugins>'):
+        (project / 'pom.xml').write_text('<project>\n  <build>\n    <plugins>\n' + closing + '\n  </build>\n</project>\n')
+        run(str(runner), '-PreCommit', '-Tool', 'checkstyle', cwd=project, env=env)
+    # Add to the main build, even when a profile has its own plugins block.
+    for pom in (
+        '<project/>',
+        '<project xmlns="http://maven.apache.org/POM/4.0.0"><profiles><profile><id>other</id><build><plugins/></build></profile></profiles></project>',
+    ):
+        (project / 'pom.xml').write_text(pom)
+        run(str(runner), '-PreCommit', '-Tool', 'checkstyle', cwd=project, env=env)
+        document = ET.parse(root / 'captured.xml')
+        ns = '{http://maven.apache.org/POM/4.0.0}' if 'xmlns=' in pom else ''
+        plugins = document.findall(f'{ns}build/{ns}plugins/{ns}plugin')
+        assert len(plugins) == 2
+        assert (project / 'pom.xml').read_text() == pom
     # Respect a custom hooks directory as Git does.
     run('git', 'config', 'core.hooksPath', str(project / 'custom-hooks'), cwd=project)
     run(str(checker / 'setup'), str(project), cwd=checker)

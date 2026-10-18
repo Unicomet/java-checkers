@@ -12,7 +12,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $qualityPom = Join-Path $repoRoot '.quality-pom.xml'
-$marker = "    </plugins>"
 
 function Invoke-Git([string[]]$GitArgs) {
     $saved = $ErrorActionPreference
@@ -99,12 +98,27 @@ try {
                 "<includeTests>$includeTests</includeTests>`r`n          <onlyAnalyze>$classNames</onlyAnalyze>")
         }
         $pom = Get-Content -Raw -Path (Join-Path $repoRoot 'pom.xml')
-        $index = $pom.LastIndexOf($marker)
-        if ($index -lt 0) {
-            throw "pom.xml has no '$marker' block to extend."
+        $document = New-Object System.Xml.XmlDocument
+        $document.PreserveWhitespace = $true
+        $document.LoadXml($pom)
+        $project = $document.DocumentElement
+        $namespace = $project.NamespaceURI
+        $build = $project.SelectSingleNode("*[local-name()='build']")
+        if ($null -eq $build) {
+            $build = $document.CreateElement('build', $namespace)
+            [void]$project.AppendChild($build)
         }
-        $generated = $pom.Substring(0, $index) + $snippet.TrimEnd() + "`r`n" + $pom.Substring($index)
-        [System.IO.File]::WriteAllText($qualityPom, $generated)
+        $plugins = $build.SelectSingleNode("*[local-name()='plugins']")
+        if ($null -eq $plugins) {
+            $plugins = $document.CreateElement('plugins', $namespace)
+            [void]$build.AppendChild($plugins)
+        }
+        $additions = New-Object System.Xml.XmlDocument
+        $additions.LoadXml("<plugins xmlns='$namespace'>$snippet</plugins>")
+        foreach ($plugin in $additions.DocumentElement.ChildNodes) {
+            [void]$plugins.AppendChild($document.ImportNode($plugin, $true))
+        }
+        $document.Save($qualityPom)
     }
     if ($runCheckstyle) {
         Write-Host 'Running checkstyle:check'
