@@ -45,7 +45,7 @@ $javaFiles = @()
 $includeTests = 'false'
 if ($PreCommit) {
     $javaFiles = New-Object System.Collections.Generic.List[string]
-    foreach ($name in (Invoke-Git @('diff', '--cached', '--name-only', '--diff-filter=ACMR'))) {
+    foreach ($name in (Invoke-Git @('-c', 'core.quotepath=false', 'diff', '--cached', '--name-only', '--diff-filter=ACMR'))) {
         $path = ([string]$name).Trim().Replace('\', '/')
         if ($path -match '^src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/') {
             $javaFiles.Add($path)
@@ -54,6 +54,12 @@ if ($PreCommit) {
     if ($javaFiles.Count -eq 0) {
         Write-Host 'No staged Java files. Checkstyle, SpotBugs, and the formatter were skipped.'
         exit 0
+    }
+    foreach ($path in $javaFiles) {
+        $unstaged = Invoke-Git @('diff', '--name-only', '--', $path)
+        if ($unstaged.Count -gt 0) {
+            throw "$path has edits that are not staged. Stage the file, then commit again."
+        }
     }
     if ($javaFiles | Where-Object { $_ -like 'src/test/java/*' }) {
         $includeTests = 'true'
@@ -80,10 +86,12 @@ try {
             $relativeIncludes = ($javaFiles | ForEach-Object { $_ -replace '^src/(main|test)/java/', '' }) -join ','
             $snippet = $snippet.Replace(
                 '<excludes>**/notification/avro/**</excludes>',
-                "<includes>$relativeIncludes</includes>`r`n          <excludes>**/notification/avro/**</excludes>")
+                "<includes>$([System.Security.SecurityElement]::Escape($relativeIncludes))</includes>`r`n          <excludes>**/notification/avro/**</excludes>")
 
             $classNames = ($javaFiles | ForEach-Object {
-                ($_ -replace '^src/(main|test)/java/', '' -replace '/', '.' -replace '\.java$', '')
+                $className = $_ -replace '^src/(main|test)/java/', '' -replace '/', '.' -replace '\.java$', ''
+                $className
+                $className + '$*'
             }) -join ','
             $snippet = $snippet.Replace(
                 '<includeTests>false</includeTests>',

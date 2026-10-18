@@ -4,6 +4,14 @@ Google Java Format, Checkstyle, and SpotBugs for a Maven project. Setup places t
 
 ## Set up a project
 
+On Linux or macOS, run this one command from the checker checkout:
+
+```bash
+./setup /path/to/your-project
+```
+
+On Windows:
+
 Clone this repository, then from that folder run:
 
 ```powershell
@@ -16,7 +24,7 @@ Use a tag when a project should stay on an older copy:
 .\setup.cmd C:\path\to\your-project -Branch v1
 ```
 
-The script clones this repository into `your-project\.local\quality`, adds `.local/` to that project's `.git/info/exclude`, and writes `.git/hooks/pre-commit`. The exclude file is local to the clone and is not pushed.
+The script clones this repository into `your-project\.local\quality`, adds `.local/` to that project's `.git/info/exclude`, and installs an executable pre-commit hook in Git's configured hooks directory. The exclude file is local to the clone and is not pushed.
 
 When `.local\quality` is already a clone of this repository, run `.\setup.cmd` with no path. That installs the hook and the exclude entry.
 
@@ -38,11 +46,21 @@ On Linux with PowerShell Core:
 ./.local/quality/run -Tool format -Mode apply
 ```
 
-A commit runs the same three tools on staged files under `src/main/java` and `src/test/java`. A commit with no staged Java files skips them. Skip one commit with `SKIP_LOCAL_CHECKS=1`.
+A commit checks Google Java Format only on staged changed lines, Checkstyle on staged Java files, and SpotBugs on classes corresponding to staged Java files (including nested classes) under `src/main/java` and `src/test/java`. SpotBugs requires compilation and may compile other project sources. A commit with no staged Java files skips them. Skip one commit with `SKIP_LOCAL_CHECKS=1`.
 
 Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, spillover outside those git-changed lines is discarded, including when a formatted line splits or merges and the line count changes. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
 
-Normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Pre-commit runs select staged Java files only and reject files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Apply mode leaves changes unstaged so you can review and stage them.
+For formatting, normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Normal Checkstyle and SpotBugs runs check the project; add `-PreCommit` to restrict them to staged files/classes. Pre-commit runs select staged Java files only and reject selected files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Apply mode leaves changes unstaged so you can review and stage them.
+
+The hook checks formatting and blocks the commit if fixes are needed. Apply and stage fixes, then retry:
+
+```bash
+./.local/quality/run -Tool format -Mode apply -PreCommit
+git add path/to/fixed/File.java
+git commit
+```
+
+Setup preserves unrelated existing pre-commit hooks by failing with their path. It supports Git worktrees and `core.hooksPath`. Re-running setup repairs the hook; an existing checker installation is retained. Pull updates inside `.local/quality` when needed.
 
 The Google Java Format all-deps jar is downloaded once into `.local/quality/tools/`.
 

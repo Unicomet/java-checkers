@@ -10,8 +10,8 @@ $checkerRoot = $PSScriptRoot
 
 function Same-Path([string]$Left, [string]$Right) {
     if ([string]::IsNullOrWhiteSpace($Left) -or [string]::IsNullOrWhiteSpace($Right)) { return $false }
-    $a = $Left.TrimEnd('\')
-    $b = $Right.TrimEnd('\')
+    $a = $Left.TrimEnd('\', '/')
+    $b = $Right.TrimEnd('\', '/')
     return $a.Equals($b, [StringComparison]::OrdinalIgnoreCase)
 }
 
@@ -28,7 +28,7 @@ function Get-OriginUrl {
 function Copy-CheckerFiles([string]$Destination) {
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $names = @(
-        'run.ps1', 'run.cmd', 'setup.ps1', 'setup.cmd', 'format-changed.ps1',
+        'run', 'run.ps1', 'run.cmd', 'setup', 'setup.ps1', 'setup.cmd', 'format-changed.ps1',
         'plugins.xml', 'checkstyle.xml', 'spotbugs-exclude.xml', 'README.md', '.gitattributes'
     )
     foreach ($name in $names) {
@@ -56,9 +56,9 @@ function Install-Checkers([string]$Destination, [string]$OriginUrl) {
 }
 
 function Add-LocalExclude([string]$ProjectRoot) {
-    $info = Join-Path $ProjectRoot '.git\info'
-    New-Item -ItemType Directory -Force -Path $info | Out-Null
-    $exclude = Join-Path $info 'exclude'
+    $exclude = git -C $ProjectRoot rev-parse --path-format=absolute --git-path info/exclude
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve Git exclude file.' }
+    New-Item -ItemType Directory -Force -Path (Split-Path $exclude) | Out-Null
     $text = ''
     if (Test-Path -LiteralPath $exclude) {
         $text = [System.IO.File]::ReadAllText($exclude)
@@ -77,11 +77,19 @@ function Add-LocalExclude([string]$ProjectRoot) {
     Write-Host 'Added .local/ to .git/info/exclude.'
 }
 
+function Set-HookExecutable([string]$Path) {
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Unix) {
+        & chmod +x -- $Path
+        if ($LASTEXITCODE -ne 0) { throw "Cannot make hook executable: $Path" }
+    }
+}
+
 function Install-Hook([string]$ProjectRoot, [string]$HookSource) {
     if (-not (Test-Path -LiteralPath $HookSource)) {
         throw "Hook template is missing: $HookSource"
     }
-    $hooks = Join-Path $ProjectRoot '.git\hooks'
+    $hooks = git -C $ProjectRoot rev-parse --path-format=absolute --git-path hooks
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve Git hooks directory.' }
     New-Item -ItemType Directory -Force -Path $hooks | Out-Null
     $destination = Join-Path $hooks 'pre-commit'
     $text = [System.IO.File]::ReadAllText($HookSource) -replace "`r`n", "`n" -replace "`r", "`n"
@@ -89,12 +97,14 @@ function Install-Hook([string]$ProjectRoot, [string]$HookSource) {
     if (Test-Path -LiteralPath $destination) {
         $current = [System.IO.File]::ReadAllText($destination) -replace "`r`n", "`n" -replace "`r", "`n"
         if ($current -eq $text) {
+            Set-HookExecutable $destination
             Write-Host 'Pre-commit hook is already installed.'
             return
         }
-        if ($current -match '\.local/quality/run\.cmd') {
+        if ($current -match '\.local/quality/run\.(cmd|ps1)') {
             $utf8 = New-Object System.Text.UTF8Encoding $false
             [System.IO.File]::WriteAllText($destination, $text, $utf8)
+            Set-HookExecutable $destination
             Write-Host 'Updated the pre-commit hook.'
             return
         }
@@ -102,6 +112,7 @@ function Install-Hook([string]$ProjectRoot, [string]$HookSource) {
     }
     $utf8 = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText($destination, $text, $utf8)
+    Set-HookExecutable $destination
     Write-Host 'Installed the pre-commit hook. It runs the formatter, Checkstyle, and SpotBugs.'
 }
 
@@ -138,6 +149,6 @@ if (Same-Path $destFull $checkerFull) {
 
 Install-Hook $Project (Join-Path $dest 'hook\pre-commit')
 Add-LocalExclude $Project
-Write-Host 'From the project root, run .\.local\quality\run'
+Write-Host 'From the project root, run ./.local/quality/run (Windows: .\.local\quality\run.cmd)'
 Write-Host 'The pre-commit hook runs the formatter, Checkstyle, and SpotBugs on staged Java files.'
 exit 0

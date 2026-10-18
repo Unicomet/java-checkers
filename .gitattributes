@@ -1,3 +1,6 @@
 hook/pre-commit text eol=lf
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
+
+/setup text eol=lf
+/run text eol=lf
