@@ -51,5 +51,101 @@
     <module name="ParameterNumber">
       <property name="max" value="8"/>
     </module>
+
+    <!-- anti-slop no-chained-type-assertions -->
+    <module name="MatchXpath">
+      <property name="id" value="noChainedTypeAssertions"/>
+      <property name="query" value="//TYPECAST[(TYPE/IDENT or TYPE/DOT) and TYPECAST[TYPE/IDENT or TYPE/DOT]]"/>
+      <message key="matchxpath.match" value="Chained reference casts discard type evidence. Keep the precise type, or parse input at the boundary before casting."/>
+    </module>
+    <!-- anti-slop no-object-parameters and no-unknown-parameters -->
+    <module name="MatchXpath">
+      <property name="id" value="noObjectParameters"/>
+      <property name="query" value="//PARAMETER_DEF[(TYPE/IDENT[@text='Object'] or TYPE/DOT/IDENT[@text='Object']) and not(TYPE/TYPE_ARGUMENTS) and not(ancestor::METHOD_DEF[1]/IDENT[@text='equals']) and not(ancestor::METHOD_DEF[1]/MODIFIERS/ANNOTATION/IDENT[@text='Override'])] | //RECORD_COMPONENT_DEF[(TYPE/IDENT[@text='Object'] or TYPE/DOT/IDENT[@text='Object']) and not(TYPE/TYPE_ARGUMENTS)]"/>
+      <message key="matchxpath.match" value="Parameter uses Object. Accept a named type and parse external input before this call."/>
+    </module>
+    <!-- anti-slop no-unknown-returns -->
+    <module name="MatchXpath">
+      <property name="id" value="noUnknownReturns"/>
+      <property name="query" value="//METHOD_DEF[not(IDENT[@text='clone']) and not(MODIFIERS/ANNOTATION/IDENT[@text='Override']) and (((TYPE/IDENT[@text='Object'] or TYPE/DOT/IDENT[@text='Object']) and not(TYPE/TYPE_ARGUMENTS)) or TYPE[IDENT[@text=('CompletableFuture','CompletionStage','Future')] and TYPE_ARGUMENTS/TYPE_ARGUMENT[IDENT[@text='Object'] or DOT/IDENT[@text='Object']]])]"/>
+      <message key="matchxpath.match" value="This return type exposes Object. Parse at the boundary and return a named type."/>
+    </module>
+    <!-- anti-slop no-unsafe-dictionary-type -->
+    <module name="MatchXpath">
+      <property name="id" value="noUnsafeDictionaryType"/>
+      <property name="query" value="//TYPE[IDENT[@text=('Map','HashMap','LinkedHashMap','ConcurrentHashMap','SortedMap','NavigableMap','Hashtable','Dictionary','ConcurrentNavigableMap','EnumMap','WeakHashMap','IdentityHashMap','TreeMap')] and TYPE_ARGUMENTS/TYPE_ARGUMENT[2][IDENT[@text='Object'] or DOT/IDENT[@text='Object']] and not(ancestor::TYPE_UPPER_BOUNDS)]"/>
+      <message key="matchxpath.match" value="This map value type is Object. Use a named value type and parse external entries before insertion."/>
+    </module>
+    <!-- anti-slop no-shape-in-symbol-names -->
+    <module name="MatchXpath">
+      <property name="id" value="noShapeInSymbolNames"/>
+      <property name="query" value="//CLASS_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //INTERFACE_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //ENUM_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //RECORD_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //METHOD_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //CTOR_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //VARIABLE_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //PARAMETER_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //RECORD_COMPONENT_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //ENUM_CONSTANT_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //PATTERN_VARIABLE_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //ANNOTATION_FIELD_DEF/IDENT[matches(@text, '.*shape.*', 'i')] | //PACKAGE_DEF//IDENT[matches(@text, '.*shape.*', 'i')]"/>
+      <message key="matchxpath.match" value="Rename this symbol so it names the domain role. The substring shape only describes structure."/>
+    </module>
+    <!-- anti-slop no-array-filter-map -->
+    <module name="MatchXpath">
+      <property name="id" value="noArrayFilterMap"/>
+      <property name="query" value="//METHOD_CALL[(DOT/IDENT[@text='map'] and DOT/METHOD_CALL/DOT/IDENT[@text='stream'] and DOT/METHOD_CALL/DOT/METHOD_CALL/DOT/IDENT[@text=('toList','collect','toArray')] and DOT/METHOD_CALL/DOT/METHOD_CALL//IDENT[@text='filter']) or (DOT/IDENT[@text='filter'] and DOT/METHOD_CALL/DOT/IDENT[@text='stream'] and DOT/METHOD_CALL/DOT/METHOD_CALL/DOT/IDENT[@text=('toList','collect','toArray')] and DOT/METHOD_CALL/DOT/METHOD_CALL//IDENT[@text='map'])]"/>
+      <message key="matchxpath.match" value="Do not collect a stream between filter and map. Keep one lazy pipeline and collect once."/>
+    </module>
+    <!-- anti-slop no-reduce-accumulator-copy -->
+    <module name="MatchXpath">
+      <property name="id" value="noReduceAccumulatorCopy"/>
+      <property name="query" value="//LAMBDA[parent::ELIST/parent::METHOD_CALL/DOT/IDENT[@text='reduce'] and (.//LITERAL_NEW[(IDENT[@text=('ArrayList','LinkedList','HashMap','LinkedHashMap','HashSet','LinkedHashSet','TreeMap','TreeSet','ConcurrentHashMap')] or DOT/IDENT[@text=('ArrayList','LinkedList','HashMap','LinkedHashMap','HashSet','LinkedHashSet','TreeMap','TreeSet','ConcurrentHashMap')]) and ELIST/EXPR] or .//METHOD_CALL[DOT/IDENT[@text=('copyOf','copyOfEntries')]])]"/>
+      <message key="matchxpath.match" value="Do not copy the reducer accumulator on each step. Mutate one local list or map and return it."/>
+    </module>
+    <!-- anti-slop no-known-value-widening -->
+    <module name="MatchXpath">
+      <property name="id" value="noKnownValueWidening"/>
+      <property name="query" value="//VARIABLE_DEF[(TYPE/IDENT[@text='Object'] or TYPE/DOT/IDENT[@text='Object']) and not(TYPE/TYPE_ARGUMENTS) and ASSIGN/EXPR[STRING_LITERAL or LITERAL_TRUE or LITERAL_FALSE or CHAR_LITERAL or NUM_INT or NUM_LONG or NUM_FLOAT or NUM_DOUBLE or LITERAL_NEW[not(IDENT[@text='Object'] or DOT/IDENT[@text='Object'])]]]"/>
+      <message key="matchxpath.match" value="This Object binding discards a known type. Keep the initializer type."/>
+    </module>
+    <!-- anti-slop no-module-mocking -->
+    <module name="MatchXpath">
+      <property name="id" value="noModuleMocking"/>
+      <property name="query" value="//METHOD_CALL[DOT/IDENT[@text=('mockStatic','mockConstruction')] or IDENT[@text=('mockStatic','mockConstruction')]]"/>
+      <message key="matchxpath.match" value="Replace mockStatic or mockConstruction with a fake passed through a real interface."/>
+    </module>
+    <!-- anti-slop no-reflect-apply -->
+    <module name="MatchXpath">
+      <property name="id" value="noReflectApply"/>
+      <property name="query" value="//METHOD_CALL[DOT/IDENT[@text=('invoke','invokeExact','newInstance')] and (DOT/METHOD_CALL/DOT/IDENT[@text=('getMethod','getDeclaredMethod','getConstructor','getDeclaredConstructor')] or .//IDENT[@text='MethodHandles'])] | //PARAMETER_DEF[TYPE/IDENT[@text=('Method','MethodHandle','Constructor')] or TYPE/DOT/IDENT[@text=('Method','MethodHandle','Constructor')]] | //VARIABLE_DEF[(TYPE/IDENT[@text=('Method','MethodHandle','Constructor')] or TYPE/DOT/IDENT[@text=('Method','MethodHandle','Constructor')])] | //RECORD_COMPONENT_DEF[TYPE/IDENT[@text=('Method','MethodHandle','Constructor')] or TYPE/DOT/IDENT[@text=('Method','MethodHandle','Constructor')]] | //METHOD_DEF[not(MODIFIERS/ANNOTATION/IDENT[@text='Override']) and (TYPE/IDENT[@text=('Method','MethodHandle','Constructor')] or TYPE/DOT/IDENT[@text=('Method','MethodHandle','Constructor')])]"/>
+      <message key="matchxpath.match" value="Replace reflective Method, MethodHandle, or Constructor use with a typed call or an interface."/>
+    </module>
+    <!-- anti-slop no-reflect-get -->
+    <module name="MatchXpath">
+      <property name="id" value="noReflectGet"/>
+      <property name="query" value="//METHOD_CALL[DOT/IDENT[@text='get'] and DOT/METHOD_CALL/DOT/IDENT[@text=('getField','getDeclaredField')]] | //PARAMETER_DEF[TYPE/IDENT[@text='Field'] or TYPE/DOT/IDENT[@text='Field']] | //VARIABLE_DEF[TYPE/IDENT[@text='Field'] or TYPE/DOT/IDENT[@text='Field']] | //RECORD_COMPONENT_DEF[TYPE/IDENT[@text='Field'] or TYPE/DOT/IDENT[@text='Field']] | //METHOD_DEF[not(MODIFIERS/ANNOTATION/IDENT[@text='Override']) and (TYPE/IDENT[@text='Field'] or TYPE/DOT/IDENT[@text='Field'])]"/>
+      <message key="matchxpath.match" value="Replace reflective Field access with a typed read, or parse dynamic input into a named type."/>
+    </module>
+    <!-- anti-slop no-runtime-typeof -->
+    <module name="MatchXpath">
+      <property name="id" value="noRuntimeTypeof"/>
+      <property name="query" value="//METHOD_CALL[DOT/IDENT[@text=('getName','getSimpleName','getCanonicalName','getTypeName')] and DOT/METHOD_CALL/DOT/IDENT[@text='getClass']]"/>
+      <message key="matchxpath.match" value="A getClass name check branches on representation. Parse input at the boundary, then branch on a domain type."/>
+    </module>
+    <!-- anti-slop prefer-effect-match, expressed as a switch -->
+    <module name="MatchXpath">
+      <property name="id" value="preferEffectMatch"/>
+      <property name="query" value="//QUESTION[not(parent::QUESTION) and (*[1][self::EQUAL or self::NOT_EQUAL][STRING_LITERAL or NUM_INT or NUM_LONG or NUM_FLOAT or NUM_DOUBLE or LITERAL_TRUE or LITERAL_FALSE or LITERAL_NULL or CHAR_LITERAL] and QUESTION[*[1][self::EQUAL or self::NOT_EQUAL][STRING_LITERAL or NUM_INT or NUM_LONG or NUM_FLOAT or NUM_DOUBLE or LITERAL_TRUE or LITERAL_FALSE or LITERAL_NULL or CHAR_LITERAL]] or *[1][self::METHOD_CALL][DOT/IDENT[@text='equals'] and .//STRING_LITERAL] and QUESTION[*[1][self::METHOD_CALL][DOT/IDENT[@text='equals'] and .//STRING_LITERAL]])]"/>
+      <message key="matchxpath.match" value="Replace this chained literal conditional with a switch."/>
+    </module>
+    <!-- anti-slop require-readable-spacing, between members only -->
+    <module name="EmptyLineSeparator">
+      <property name="id" value="requireReadableSpacing"/>
+      <property name="allowNoEmptyLineBetweenFields" value="true"/>
+    </module>
+  </module>
+  <!-- anti-slop no-widen-then-assert -->
+  <module name="RegexpMultiline">
+    <property name="id" value="noWidenThenAssert"/>
+    <property name="format" value="final\s+Object\s+(\w+)\s*=\s*[^;]*;[\s\S]{0,500}?\(\s*(?!Object\b)[A-Z][\w.]*\s*\)\s*\1\b"/>
+    <property name="message" value="This final Object binding is later cast to a narrower type. Keep the precise type from initialization."/>
+  </module>
+  <!-- anti-slop no-array-filter-map across two statements -->
+  <module name="RegexpMultiline">
+    <property name="id" value="noArrayFilterMapLocal"/>
+    <property name="format" value="\b(\w+)\s*=\s*[^;]*\.filter\s*\([^;]*\)\s*\.\s*(?:toList|toArray|collect)\s*\([^;]*\)\s*;[\s\S]{0,400}?\b\1\.stream\s*\(\s*\)\s*\.map\s*\(|\b(\w+)\s*=\s*[^;]*\.map\s*\([^;]*\)\s*\.\s*(?:toList|toArray|collect)\s*\([^;]*\)\s*;[\s\S]{0,400}?\b\2\.stream\s*\(\s*\)\s*\.filter\s*\("/>
+    <property name="message" value="Do not collect a stream between filter and map. Keep one lazy pipeline and collect once."/>
   </module>
 </module>
