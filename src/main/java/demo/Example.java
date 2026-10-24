@@ -6,6 +6,6 @@ public final class Example {
 
   /** Returns a greeting. */
   public static String greeting() {
-    return "Hello";
+    return "Hello Gradle";
   }
 }
