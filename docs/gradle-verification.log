@@ -1,0 +1,663 @@
+$ git init
+Initialized empty Git repository in /tmp/java-checkers-evidence/groovy/checker/.git/
+
+$ git config user.name Checker verification
+
+$ git config user.email checkers@example.com
+
+$ git add .
+warning: in the working copy of 'format-changed.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'run.cmd', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'run.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'setup.cmd', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'setup.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/format-changed.Tests.ps1', LF will be replaced by CRLF the next time Git touches it
+
+$ git commit -m Checker snapshot under test
+[master (root-commit) 394faa7] Checker snapshot under test
+ 23 files changed, 1482 insertions(+)
+ create mode 100644 .gitattributes
+ create mode 100644 .gitignore
+ create mode 100644 AGENTS.md
+ create mode 100644 README.md
+ create mode 100644 checkstyle.xml
+ create mode 100644 examples/gradle/build.gradle
+ create mode 100644 examples/gradle/settings.gradle
+ create mode 100644 examples/gradle/src/main/java/demo/Example.java
+ create mode 100644 format-changed.ps1
+ create mode 100644 hook/pre-commit
+ create mode 100644 plugins.xml
+ create mode 100644 quality.init.gradle
+ create mode 100755 run
+ create mode 100644 run.cmd
+ create mode 100644 run.ps1
+ create mode 100755 setup
+ create mode 100644 setup.cmd
+ create mode 100644 setup.ps1
+ create mode 100644 spotbugs-exclude.xml
+ create mode 100644 tests/format-changed.Tests.ps1
+ create mode 100644 tests/gradle.Tests.py
+ create mode 100644 tests/setup-and-hook.Tests.py
+ create mode 100644 tests/spotbugs-staged.Tests.py
+
+$ git remote add origin /tmp/java-checkers-evidence/groovy/checker
+
+$ gradle --no-daemon wrapper --gradle-version 8.14.3
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :wrapper
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+
+$ git init
+Initialized empty Git repository in /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.git/
+
+$ git config user.name Checker verification
+
+$ git config user.email checkers@example.com
+
+$ git add .
+
+$ git commit -m Initial Gradle project
+[master (root-commit) b5e9618] Initial Gradle project
+ 8 files changed, 369 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 build.gradle
+ create mode 100644 gradle/wrapper/gradle-wrapper.jar
+ create mode 100644 gradle/wrapper/gradle-wrapper.properties
+ create mode 100755 gradlew
+ create mode 100644 gradlew.bat
+ create mode 100644 settings.gradle
+ create mode 100644 src/main/java/demo/Example.java
+
+$ /tmp/java-checkers-evidence/groovy/checker/setup /tmp/java-checkers-evidence/groovy/Gradle project with spaces
+Cloned the checkers into /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality
+Installed the pre-commit hook. It runs the formatter, Checkstyle, and SpotBugs.
+Added .local/ to .git/info/exclude.
+From the project root, run ./.local/quality/run (Windows: .\.local\quality\run.cmd)
+The pre-commit hook runs the formatter, Checkstyle, and SpotBugs on staged Java files.
+Cloning into '/tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality'...
+done.
+
+$ /tmp/java-checkers-evidence/groovy/checker/setup /tmp/java-checkers-evidence/groovy/Gradle project with spaces
+Checkers are already installed.
+Pre-commit hook is already installed.
+.git/info/exclude already ignores .local/.
+From the project root, run ./.local/quality/run (Windows: .\.local\quality\run.cmd)
+The pre-commit hook runs the formatter, Checkstyle, and SpotBugs on staged Java files.
+
+$ git add .
+
+$ git commit -m Must fail formatting
+Checking 1 staged Java file(s).
+Running Google Java Format on changed lines
+Downloading google-java-format-1.24.0-all-deps.jar
+Formatting 1 line range(s) in src/main/java/demo/Example.java
+src/main/java/demo/Example.java
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 4s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :compileJava
+> Task :processResources NO-SOURCE
+> Task :classes
+
+> Task :qualitySpotbugs
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+BUILD SUCCESSFUL in 4s
+2 actionable tasks: 2 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool format -Mode apply -PreCommit
+Checking 1 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in src/main/java/demo/Example.java
+  applied
+Google Java Format apply finished on 1 file(s).
+
+$ git add .
+
+$ git add /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool spotbugs -PreCommit
+Checking 2 staged Java file(s).
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :compileJava
+> Task :processResources NO-SOURCE
+> Task :classes
+
+> Task :qualitySpotbugs FAILED
+2 actionable tasks: 2 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':qualitySpotbugs'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+
+$ git add /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool checkstyle -PreCommit
+Checking 2 staged Java file(s).
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :qualityCheckstyle FAILED
+Starting audit...
+[ERROR] /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java:2:1: '/*' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java:3:1: 'CLASS_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java:6:3: 'CLASS_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java:9:5: 'METHOD_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java:9:27: Name 'BAD_NAME' must match pattern '^[a-z][a-zA-Z0-9]*$'. [MethodName]
+Audit done.
+1 actionable task: 1 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+Checkstyle ends with 5 errors.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':qualityCheckstyle'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 5
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s
+
+$ git add /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool format -Mode apply -PreCommit
+Checking 2 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in src/main/java/demo/Example.java
+Formatting 1 line range(s) in src/main/java/demo/Staged.java
+  applied
+Google Java Format apply finished on 1 file(s).
+
+$ git add /tmp/java-checkers-evidence/groovy/Gradle project with spaces/src/main/java/demo/Staged.java
+
+$ git commit -m Verify formatting, Checkstyle and SpotBugs on Gradle
+[master ee6d4db] Verify formatting, Checkstyle and SpotBugs on Gradle
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+ create mode 100644 src/main/java/demo/Staged.java
+Checking 2 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in src/main/java/demo/Example.java
+Formatting 1 line range(s) in src/main/java/demo/Staged.java
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :compileJava
+> Task :processResources NO-SOURCE
+> Task :classes
+
+> Task :qualitySpotbugs
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+BUILD SUCCESSFUL in 4s
+2 actionable tasks: 2 executed
+
+$ git show --stat --oneline HEAD
+ee6d4db Verify formatting, Checkstyle and SpotBugs on Gradle
+ src/main/java/demo/Example.java |  2 +-
+ src/main/java/demo/Staged.java  | 16 ++++++++++++++++
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool spotbugs
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :compileJava UP-TO-DATE
+> Task :processResources NO-SOURCE
+> Task :classes UP-TO-DATE
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+
+> Task :qualitySpotbugs
+
+> Task :qualitySpotbugs FAILED
+2 actionable tasks: 1 executed, 1 up-to-date
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':qualitySpotbugs'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 5s
+
+$ git diff --exit-code
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run
+Running Google Java Format on changed lines
+No changed Java files to format.
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 5s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :compileJava UP-TO-DATE
+> Task :processResources NO-SOURCE
+> Task :classes UP-TO-DATE
+> Task :compileTestJava NO-SOURCE
+> Task :processTestResources NO-SOURCE
+> Task :testClasses UP-TO-DATE
+
+> Task :qualitySpotbugs
+
+BUILD SUCCESSFUL in 5s
+2 actionable tasks: 1 executed, 1 up-to-date
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+$ /tmp/java-checkers-evidence/groovy/Gradle project with spaces/.local/quality/run -Tool checkstyle
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+
+$ git init
+Initialized empty Git repository in /tmp/java-checkers-evidence/kotlin/checker/.git/
+
+$ git config user.name Checker verification
+
+$ git config user.email checkers@example.com
+
+$ git add .
+warning: in the working copy of 'format-changed.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'run.cmd', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'run.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'setup.cmd', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'setup.ps1', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/format-changed.Tests.ps1', LF will be replaced by CRLF the next time Git touches it
+
+$ git commit -m Checker snapshot under test
+[master (root-commit) df4e5ba] Checker snapshot under test
+ 23 files changed, 1483 insertions(+)
+ create mode 100644 .gitattributes
+ create mode 100644 .gitignore
+ create mode 100644 AGENTS.md
+ create mode 100644 README.md
+ create mode 100644 checkstyle.xml
+ create mode 100644 examples/gradle/build.gradle
+ create mode 100644 examples/gradle/settings.gradle
+ create mode 100644 examples/gradle/src/main/java/demo/Example.java
+ create mode 100644 format-changed.ps1
+ create mode 100644 hook/pre-commit
+ create mode 100644 plugins.xml
+ create mode 100644 quality.init.gradle
+ create mode 100755 run
+ create mode 100644 run.cmd
+ create mode 100644 run.ps1
+ create mode 100755 setup
+ create mode 100644 setup.cmd
+ create mode 100644 setup.ps1
+ create mode 100644 spotbugs-exclude.xml
+ create mode 100644 tests/format-changed.Tests.ps1
+ create mode 100644 tests/gradle.Tests.py
+ create mode 100644 tests/setup-and-hook.Tests.py
+ create mode 100644 tests/spotbugs-staged.Tests.py
+
+$ git remote add origin /tmp/java-checkers-evidence/kotlin/checker
+
+$ gradle --no-daemon wrapper --gradle-version 8.14.3
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :wrapper
+
+BUILD SUCCESSFUL in 6s
+1 actionable task: 1 executed
+
+$ git init
+Initialized empty Git repository in /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.git/
+
+$ git config user.name Checker verification
+
+$ git config user.email checkers@example.com
+
+$ git add .
+
+$ git commit -m Initial Gradle project
+[master (root-commit) 26d93a2] Initial Gradle project
+ 8 files changed, 368 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 app/build.gradle.kts
+ create mode 100644 app/src/main/java/demo/Example.java
+ create mode 100644 gradle/wrapper/gradle-wrapper.jar
+ create mode 100644 gradle/wrapper/gradle-wrapper.properties
+ create mode 100755 gradlew
+ create mode 100644 gradlew.bat
+ create mode 100644 settings.gradle.kts
+
+$ /tmp/java-checkers-evidence/kotlin/checker/setup /tmp/java-checkers-evidence/kotlin/Gradle project with spaces
+Cloned the checkers into /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality
+Installed the pre-commit hook. It runs the formatter, Checkstyle, and SpotBugs.
+Added .local/ to .git/info/exclude.
+From the project root, run ./.local/quality/run (Windows: .\.local\quality\run.cmd)
+The pre-commit hook runs the formatter, Checkstyle, and SpotBugs on staged Java files.
+Cloning into '/tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality'...
+done.
+
+$ /tmp/java-checkers-evidence/kotlin/checker/setup /tmp/java-checkers-evidence/kotlin/Gradle project with spaces
+Checkers are already installed.
+Pre-commit hook is already installed.
+.git/info/exclude already ignores .local/.
+From the project root, run ./.local/quality/run (Windows: .\.local\quality\run.cmd)
+The pre-commit hook runs the formatter, Checkstyle, and SpotBugs on staged Java files.
+
+$ git add .
+
+$ git commit -m Must fail formatting
+Checking 1 staged Java file(s).
+Running Google Java Format on changed lines
+Downloading google-java-format-1.24.0-all-deps.jar
+Formatting 1 line range(s) in app/src/main/java/demo/Example.java
+app/src/main/java/demo/Example.java
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:compileJava
+> Task :app:processResources NO-SOURCE
+> Task :app:classes
+
+> Task :app:qualitySpotbugs
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+BUILD SUCCESSFUL in 4s
+2 actionable tasks: 2 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool format -Mode apply -PreCommit
+Checking 1 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in app/src/main/java/demo/Example.java
+  applied
+Google Java Format apply finished on 1 file(s).
+
+$ git add .
+
+$ git add /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool spotbugs -PreCommit
+Checking 2 staged Java file(s).
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:compileJava
+> Task :app:processResources NO-SOURCE
+> Task :app:classes
+
+> Task :app:qualitySpotbugs FAILED
+2 actionable tasks: 2 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:qualitySpotbugs'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+
+$ git add /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool checkstyle -PreCommit
+Checking 2 staged Java file(s).
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:qualityCheckstyle FAILED
+Starting audit...
+[ERROR] /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java:2:1: '/*' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java:3:1: 'CLASS_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java:6:3: 'CLASS_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java:9:5: 'METHOD_DEF' should be separated from previous line. [requireReadableSpacing]
+[ERROR] /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java:9:27: Name 'BAD_NAME' must match pattern '^[a-z][a-zA-Z0-9]*$'. [MethodName]
+Audit done.
+1 actionable task: 1 executed
+Commit blocked. Stage the fixes and commit again.
+To format the changed lines: ./.local/quality/run -Mode apply -PreCommit
+To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.
+Checkstyle ends with 5 errors.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:qualityCheckstyle'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 5
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 3s
+
+$ git add /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool format -Mode apply -PreCommit
+Checking 2 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in app/src/main/java/demo/Example.java
+Formatting 1 line range(s) in app/src/main/java/demo/Staged.java
+  applied
+Google Java Format apply finished on 1 file(s).
+
+$ git add /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/app/src/main/java/demo/Staged.java
+
+$ git commit -m Verify formatting, Checkstyle and SpotBugs on Gradle
+[master ea5822a] Verify formatting, Checkstyle and SpotBugs on Gradle
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/demo/Staged.java
+Checking 2 staged Java file(s).
+Running Google Java Format on changed lines
+Formatting 1 line range(s) in app/src/main/java/demo/Example.java
+Formatting 1 line range(s) in app/src/main/java/demo/Staged.java
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:compileJava
+> Task :app:processResources NO-SOURCE
+> Task :app:classes
+
+> Task :app:qualitySpotbugs
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+BUILD SUCCESSFUL in 5s
+2 actionable tasks: 2 executed
+
+$ git show --stat --oneline HEAD
+ea5822a Verify formatting, Checkstyle and SpotBugs on Gradle
+ app/src/main/java/demo/Example.java |  2 +-
+ app/src/main/java/demo/Staged.java  | 16 ++++++++++++++++
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool spotbugs
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:compileJava UP-TO-DATE
+> Task :app:processResources NO-SOURCE
+> Task :app:classes UP-TO-DATE
+> Task :app:compileTestJava NO-SOURCE
+> Task :app:processTestResources NO-SOURCE
+> Task :app:testClasses UP-TO-DATE
+
+> Task :app:qualitySpotbugs FAILED
+2 actionable tasks: 1 executed, 1 up-to-date
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:qualitySpotbugs'.
+> Process 'command '/home/memo-pc-linux/.local/share/mise/installs/java/17.0.20+101/bin/java'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+
+$ git diff --exit-code
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run
+Running Google Java Format on changed lines
+No changed Java files to format.
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed
+Running Gradle qualitySpotbugs
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:compileJava UP-TO-DATE
+> Task :app:processResources NO-SOURCE
+> Task :app:classes UP-TO-DATE
+> Task :app:compileTestJava NO-SOURCE
+> Task :app:processTestResources NO-SOURCE
+> Task :app:testClasses UP-TO-DATE
+
+> Task :app:qualitySpotbugs
+
+BUILD SUCCESSFUL in 4s
+2 actionable tasks: 1 executed, 1 up-to-date
+SLF4J(W): No SLF4J providers were found.
+SLF4J(W): Defaulting to no-operation (NOP) logger implementation
+SLF4J(W): See https://www.slf4j.org/codes.html#noProviders for further details.
+
+$ /tmp/java-checkers-evidence/kotlin/Gradle project with spaces/.local/quality/run -Tool checkstyle
+Running Gradle qualityCheckstyle
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:qualityCheckstyle
+Starting audit...
+Audit done.
+
+BUILD SUCCESSFUL in 3s
+1 actionable task: 1 executed

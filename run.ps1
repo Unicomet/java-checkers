@@ -1,5 +1,5 @@
 # Formatter, Checkstyle, and SpotBugs for the project two folders above this script.
-# The script never edits pom.xml. It writes a throwaway .quality-pom.xml, runs Maven, then deletes it.
+# Build files stay unchanged: Maven uses a temporary POM; Gradle uses an init script.
 param(
     [ValidateSet('check', 'apply')]
     [string]$Mode = 'check',
@@ -22,6 +22,21 @@ function Invoke-Git([string[]]$GitArgs) {
     Write-Output -NoEnumerate $output
 }
 
+function Invoke-Gradle([string]$Task) {
+    $windows = [Environment]::OSVersion.Platform -ne [PlatformID]::Unix
+    $wrapper = if ($windows) { 'gradlew.bat' } else { 'gradlew' }
+    $command = 'gradle'
+    if (Test-Path -LiteralPath (Join-Path $repoRoot $wrapper)) {
+        $command = Join-Path $repoRoot $wrapper
+    }
+    $gradleArgs = @('--no-daemon', '--console=plain', '--no-configuration-cache',
+        '--init-script', (Join-Path $PSScriptRoot 'quality.init.gradle'),
+        "-PqualityRoot=$PSScriptRoot", "-PqualityPreCommit=$($PreCommit.IsPresent.ToString().ToLowerInvariant())",
+        "-PqualityFiles=$($javaFiles -join ',')", $Task)
+    & $command @gradleArgs
+    if ($null -eq $LASTEXITCODE) { $script:GradleExit = 1 } else { $script:GradleExit = $LASTEXITCODE }
+}
+
 function Invoke-Maven {
     param([string[]]$MavenArgs)
     $mvnArgs = @('-B')
@@ -40,13 +55,18 @@ if ($All) {
 
 Set-Location $repoRoot
 
+$isGradle = (Test-Path -LiteralPath (Join-Path $repoRoot 'build.gradle')) -or
+    (Test-Path -LiteralPath (Join-Path $repoRoot 'build.gradle.kts')) -or
+    (Test-Path -LiteralPath (Join-Path $repoRoot 'settings.gradle')) -or
+    (Test-Path -LiteralPath (Join-Path $repoRoot 'settings.gradle.kts'))
+
 $javaFiles = @()
 $includeTests = 'false'
 if ($PreCommit) {
     $javaFiles = New-Object System.Collections.Generic.List[string]
     foreach ($name in (Invoke-Git @('-c', 'core.quotepath=false', 'diff', '--cached', '--name-only', '--diff-filter=ACMR'))) {
         $path = ([string]$name).Trim().Replace('\', '/')
-        if ($path -match '^src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/') {
+        if (($path -match '^src/(main|test)/java/.+\.java$' -or ($isGradle -and $path -match '^(?:.+/)?src/(main|test)/java/.+\.java$')) -and $path -notmatch '/notification/avro/') {
             $javaFiles.Add($path)
         }
     }
@@ -79,7 +99,10 @@ try {
         & (Join-Path $PSScriptRoot 'format-changed.ps1') @formatArgs
         if ($LASTEXITCODE -ne 0) { $failed = $true }
     }
-    if ($runCheckstyle -or $runSpotbugs) {
+    if (($runCheckstyle -or $runSpotbugs) -and -not $isGradle) {
+        if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'pom.xml'))) {
+            throw 'No Maven pom.xml or Gradle build/settings file found in the project root.'
+        }
         $snippet = Get-Content -Raw -Path (Join-Path $PSScriptRoot 'plugins.xml')
         if ($PreCommit) {
             $relativeIncludes = ($javaFiles | ForEach-Object { $_ -replace '^src/(main|test)/java/', '' }) -join ','
@@ -121,16 +144,28 @@ try {
         $document.Save($qualityPom)
     }
     if ($runCheckstyle) {
-        Write-Host 'Running checkstyle:check'
-        Invoke-Maven @('checkstyle:check')
-        if ($script:MavenExit -ne 0) { $failed = $true }
+        if ($isGradle) {
+            Write-Host 'Running Gradle qualityCheckstyle'
+            Invoke-Gradle 'qualityCheckstyle'
+            if ($script:GradleExit -ne 0) { $failed = $true }
+        } else {
+            Write-Host 'Running checkstyle:check'
+            Invoke-Maven @('checkstyle:check')
+            if ($script:MavenExit -ne 0) { $failed = $true }
+        }
     }
     if ($runSpotbugs) {
         $compileGoal = 'compile'
         if ($includeTests -eq 'true') { $compileGoal = 'test-compile' }
-        Write-Host 'Running spotbugs:check'
-        Invoke-Maven @('-DskipTests', $compileGoal, 'spotbugs:check')
-        if ($script:MavenExit -ne 0) { $failed = $true }
+        if ($isGradle) {
+            Write-Host 'Running Gradle qualitySpotbugs'
+            Invoke-Gradle 'qualitySpotbugs'
+            if ($script:GradleExit -ne 0) { $failed = $true }
+        } else {
+            Write-Host 'Running spotbugs:check'
+            Invoke-Maven @('-DskipTests', $compileGoal, 'spotbugs:check')
+            if ($script:MavenExit -ne 0) { $failed = $true }
+        }
     }
 }
 finally {

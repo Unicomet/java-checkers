@@ -29,7 +29,7 @@ function Copy-CheckerFiles([string]$Destination) {
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $names = @(
         'run', 'run.ps1', 'run.cmd', 'setup', 'setup.ps1', 'setup.cmd', 'format-changed.ps1',
-        'plugins.xml', 'checkstyle.xml', 'spotbugs-exclude.xml', 'README.md', '.gitattributes'
+        'plugins.xml', 'quality.init.gradle', 'checkstyle.xml', 'spotbugs-exclude.xml', 'README.md', '.gitattributes'
     )
     foreach ($name in $names) {
         Copy-Item -LiteralPath (Join-Path $checkerRoot $name) -Destination (Join-Path $Destination $name)

@@ -1,6 +1,6 @@
 # Java checkers
 
-Google Java Format, Checkstyle, and SpotBugs for a Maven project. Setup places them in `.local/quality` and writes a pre-commit hook that runs all three on staged Java files.
+Google Java Format, Checkstyle, and SpotBugs for Maven and Gradle Java projects. Setup places them in `.local/quality` and writes a pre-commit hook that runs all three on staged Java files.
 
 ## Set up a project
 
@@ -68,11 +68,13 @@ The Google Java Format all-deps jar is downloaded once into `.local/quality/tool
 
 Edit `.local/quality/checkstyle.xml` and `.local/quality/spotbugs-exclude.xml` in that project's clone. Commit those edits in the checker clone when you want to keep them. Other projects stay on their own clone and tag.
 
-The runner adds the tool plugins to a temporary copy of the project `pom.xml`, regardless of indentation, and creates the build/plugins block if needed. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
+For Maven, the runner adds the tool plugins to a temporary copy of the project `pom.xml`, regardless of indentation, and creates the build/plugins block if needed. Maven uses `.mvn/settings.xml` when that file exists. Java sources are read from `src/main/java` and `src/test/java`.
+
+Gradle projects are detected by `build.gradle`, `build.gradle.kts`, `settings.gradle`, or `settings.gradle.kts` (Gradle takes precedence if a POM also exists). The runner prefers `gradlew` / `gradlew.bat`, falling back to `gradle` on PATH. It supplies `quality.init.gradle` with [`--init-script`](https://docs.gradle.org/current/userguide/init_scripts.html); no build file edits or checker plugins are required. It adds `qualityCheckstyle` and `qualitySpotbugs` tasks to Java projects, using the same checker versions and configuration as Maven. Gradle resolves the checker dependencies from Maven Central. SpotBugs compiles the selected source sets and writes `build/reports/local-quality/spotbugs.xml` in each Java project. Checkstyle uses Java source sets; staged selection and formatting recognize standard `src/main/java` and `src/test/java` paths, including Gradle subprojects. Custom source layouts are supported only by normal Gradle lint runs.
 
 ## Requirements
 
-Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access once to download the formatter jar.
+Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access for the first tool/dependency downloads. Gradle support is verified with Gradle 8.14.3 and JDK 17; other Gradle versions must support running on the installed JDK.
 
 ## Verify the checker scripts
 
@@ -80,6 +82,11 @@ Git, Maven, PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Goog
 pwsh -NoProfile -File tests/format-changed.Tests.ps1
 python3 tests/setup-and-hook.Tests.py
 python3 tests/spotbugs-staged.Tests.py
+python3 tests/gradle.Tests.py
 ```
 
 The setup test uses a Maven stub. The SpotBugs regression test runs real Maven in a temporary project, verifies a staged nested-class violation blocks the check, and verifies an unstaged class with the same violation is ignored. It needs the tools listed above and access to Maven dependencies.
+
+The Gradle integration test uses real Gradle, generates a project wrapper, and runs `./setup` in Groovy and Kotlin DSL projects. It verifies formatting, Checkstyle, and SpotBugs failures, staged nested-class selection, and an actual successful `git commit` through the installed hook. Put Gradle on PATH to generate the wrapper. Set `QUALITY_EVIDENCE=/path/to/log` to save the complete command transcript.
+
+See [Gradle verification evidence](docs/gradle-verification.md) for a published commit made through the installed hook and the recorded command output.

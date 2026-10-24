@@ -1,0 +1,65 @@
+// Added only for checker invocations; the project's build files are never edited.
+allprojects { project ->
+    project.plugins.withId('java') {
+        def qualityRoot = new File(project.property('qualityRoot').toString())
+        def stagedOnly = project.property('qualityPreCommit').toString() == 'true'
+        def selected = project.property('qualityFiles').toString().split(',').findAll { it }
+        def selectedFiles = selected.collect { new File(rootDir, it).canonicalFile } as Set
+        def checkstyleTools = configurations.create('localQualityCheckstyle')
+        def spotbugsTools = configurations.create('localQualitySpotbugs')
+        repositories { mavenCentral() }
+        dependencies.add(checkstyleTools.name, 'com.puppycrawl.tools:checkstyle:12.3.1')
+        dependencies.add(spotbugsTools.name, 'com.github.spotbugs:spotbugs:4.10.4')
+
+        tasks.register('qualityCheckstyle', JavaExec) {
+            group = 'verification'
+            description = 'Check Java sources with the local checker configuration.'
+            classpath = checkstyleTools
+            mainClass.set('com.puppycrawl.tools.checkstyle.Main')
+            doFirst {
+                def sources = sourceSets.findAll { it.name in ['main', 'test'] }
+                    .collectMany { it.allJava.files }.findAll {
+                        !it.path.replace('\\', '/').contains('/notification/avro/') &&
+                            (!stagedOnly || selectedFiles.contains(it.canonicalFile))
+                    }
+                setArgs(['-c', new File(qualityRoot, 'checkstyle.xml').path] + sources*.path)
+                if (sources.empty) { throw new StopExecutionException('No selected Java sources.') }
+            }
+        }
+
+        tasks.register('qualitySpotbugs', JavaExec) {
+            group = 'verification'
+            description = 'Analyze compiled Java classes with SpotBugs.'
+            def sets = sourceSets.findAll { it.name == 'main' ||
+                (it.name == 'test' && (!stagedOnly || selected.any { it.contains('/src/test/java/') || it.startsWith('src/test/java/') })) }
+            dependsOn sets.collect { it.classesTaskName }
+            classpath = spotbugsTools
+            mainClass.set('edu.umd.cs.findbugs.LaunchAppropriateUI')
+            doFirst {
+                def sources = sets.collectMany { it.allJava.files }.findAll {
+                    !it.path.replace('\\', '/').contains('/notification/avro/') &&
+                        (!stagedOnly || selectedFiles.contains(it.canonicalFile))
+                }
+                // Restrict reports to selected top-level classes and their nested classes.
+                def names = sources.collectMany { source ->
+                    def sourceRoot = sets.collectMany { it.java.srcDirs }.find {
+                        source.toPath().startsWith(it.toPath())
+                    }
+                    if (sourceRoot == null) { return [] }
+                    def name = sourceRoot.toPath().relativize(source.toPath()).toString()
+                        .replace('\\', '.').replace('/', '.').replaceAll(/\.java$/, '')
+                    [name, name + '$[^/]*']
+                }
+                def classes = sets.collectMany { it.output.classesDirs.files }.findAll { it.exists() }
+                if (names.empty || classes.empty) { throw new StopExecutionException('No selected Java classes.') }
+                def report = layout.buildDirectory.file('reports/local-quality/spotbugs.xml').get().asFile
+                report.parentFile.mkdirs()
+                def auxiliary = files(sets.collect { it.compileClasspath }, sets.collect { it.output }).asPath
+                setArgs(['-textui', '-exitcode', '-effort:max', '-medium',
+                    '-exclude', new File(qualityRoot, 'spotbugs-exclude.xml').path,
+                    '-onlyAnalyze', names.join(','), '-auxclasspath', auxiliary,
+                    '-xml:withMessages', '-output', report.path] + classes*.path)
+            }
+        }
+    }
+}

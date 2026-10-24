@@ -33,7 +33,7 @@ function Get-JavaPaths([switch]$StagedOnly) {
     $java = New-Object System.Collections.Generic.List[string]
     foreach ($name in $names) {
         $path = ([string]$name).Replace('\', '/')
-        if ($path -match '^src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/' -and -not $java.Contains($path)) {
+        if ($path -match '^(?:.+/)?src/(main|test)/java/.+\.java$' -and $path -notmatch '/notification/avro/' -and -not $java.Contains($path)) {
             $java.Add($path)
         }
     }

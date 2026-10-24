@@ -53,6 +53,7 @@ public final class Unstaged {
     run('git', 'add', str(staged), cwd=project)
     result = run(str(project / '.local/quality/run'), '-PreCommit', '-Tool', 'spotbugs', cwd=project, ok=False)
     assert result.returncode != 0, 'SpotBugs missed a staged nested-class bug'
+    assert (project / 'target/spotbugsXml.xml').exists(), result.stdout + result.stderr
     report = ET.parse(project / 'target/spotbugsXml.xml')
     classes = {bug.find('Class').get('classname') for bug in report.findall('BugInstance')}
     assert classes == {'verification.Staged$Nested'}, (classes, result.stdout, result.stderr)
