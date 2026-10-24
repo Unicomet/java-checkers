@@ -54,10 +54,14 @@ allprojects { project ->
                 if (names.empty || classes.empty) { throw new StopExecutionException('No selected Java classes.') }
                 def report = layout.buildDirectory.file('reports/local-quality/spotbugs.xml').get().asFile
                 report.parentFile.mkdirs()
-                def auxiliary = files(sets.collect { it.compileClasspath }, sets.collect { it.output }).asPath
+                // Keep dependency paths off the command line to avoid Windows CreateProcess error 206.
+                def auxiliary = new File(temporaryDir, 'auxclasspath.txt')
+                auxiliary.parentFile.mkdirs()
+                auxiliary.setText(files(sets.collect { it.compileClasspath }, sets.collect { it.output })
+                    .files.collect { it.absolutePath }.join('\n') + '\n', 'UTF-8')
                 setArgs(['-textui', '-exitcode', '-effort:max', '-medium',
                     '-exclude', new File(qualityRoot, 'spotbugs-exclude.xml').path,
-                    '-onlyAnalyze', names.join(','), '-auxclasspath', auxiliary,
+                    '-onlyAnalyze', names.join(','), '-auxclasspathFromFile', auxiliary.path,
                     '-xml:withMessages', '-output', report.path] + classes*.path)
             }
         }
