@@ -10,8 +10,8 @@ if command -v pwsh >/dev/null 2>&1; then
   exit $?
 fi
 if command -v powershell.exe >/dev/null 2>&1; then
-  cmd.exe //c "$root/.local/quality/run.cmd" -PreCommit
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$root/.local/quality/run.ps1" -PreCommit
   exit $?
 fi
-echo "PowerShell (pwsh) is required for local quality checks." >&2
+echo "PowerShell (pwsh or powershell.exe) is required for local quality checks." >&2
 exit 1

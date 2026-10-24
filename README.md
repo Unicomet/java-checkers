@@ -4,13 +4,15 @@ Google Java Format, Checkstyle, and SpotBugs for Maven and Gradle Java projects.
 
 ## Set up a project
 
-On Linux or macOS, run this one command from the checker checkout:
+In Git Bash on Windows or Bash on Linux/macOS, run this command from the checker checkout:
 
 ```bash
 ./setup /path/to/your-project
 ```
 
-On Windows:
+Paths containing spaces must be quoted. In Git Bash, use Bash paths such as `/c/Users/you/my-project`. The Bash launchers use `pwsh` when available and fall back to `powershell.exe` on Windows. Linux/macOS require PowerShell Core (`pwsh`) on PATH.
+
+In Windows Command Prompt or PowerShell:
 
 Clone this repository, then from that folder run:
 
@@ -39,7 +41,7 @@ From the project root:
 .\.local\quality\run -Mode apply -Tool format
 ```
 
-On Linux with PowerShell Core:
+In Git Bash or Linux/macOS Bash:
 
 ```bash
 ./.local/quality/run
@@ -80,6 +82,7 @@ Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`p
 
 ```bash
 pwsh -NoProfile -File tests/format-changed.Tests.ps1
+python3 tests/bash-launchers.Tests.py
 python3 tests/setup-and-hook.Tests.py
 python3 tests/spotbugs-staged.Tests.py
 python3 tests/gradle.Tests.py
