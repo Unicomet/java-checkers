@@ -100,6 +100,7 @@ Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`p
 
 ```bash
 pwsh -NoProfile -File tests/format-changed.Tests.ps1
+python3 tests/formatter-staged.Tests.py
 python3 tests/bash-launchers.Tests.py
 python3 tests/setup-and-hook.Tests.py
 python3 tests/diagnostics.Tests.py

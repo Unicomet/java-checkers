@@ -291,7 +291,8 @@ foreach ($relative in $paths) {
         $affected = @(1..$beforeInfo.Lines.Count)
         $ranges = @("1:$($beforeInfo.Lines.Count)")
     } else {
-        $diffArgs = @('-c', 'core.quotepath=false', 'diff', '-U0', '--', $relative)
+        # Match normal file selection: include both staged and unstaged changes since HEAD.
+        $diffArgs = @('-c', 'core.quotepath=false', 'diff', 'HEAD', '-U0', '--', $relative)
         if ($PreCommit) {
             $diffArgs = @('-c', 'core.quotepath=false', 'diff', '--cached', '-U0', '--', $relative)
         }
