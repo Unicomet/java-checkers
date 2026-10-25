@@ -1,0 +1,512 @@
+#!/usr/bin/env bash
+# Isolated launcher for the java-checkers user commands.
+set -euo pipefail
+
+SOURCE=$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)
+
+usage() {
+  cat <<'EOF'
+Usage: verify-java-checkers <command> [args]
+
+  launch
+  doctor [project-name]
+  doctor --git <worktree>
+  new-project <project-name>
+  record <project-name> -- <command> [args...]
+  cleanup
+
+Export VERIFY_RUN_ID from the launch output before the other commands.
+EOF
+}
+
+die() {
+  printf 'verify-java-checkers: %s\n' "$*" >&2
+  exit 1
+}
+
+validate_run_id() {
+  local id=$1
+  [[ $id =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid VERIFY_RUN_ID: $id"
+}
+
+validate_name() {
+  local name=$1
+  [[ -n $name && $name != -* && $name != *..* && $name != */* && $name =~ ^[A-Za-z0-9._\ -]+$ ]] \
+    || die "Invalid project name: $name"
+}
+
+require_run_id() {
+  [[ -n ${VERIFY_RUN_ID:-} ]] || die "VERIFY_RUN_ID is not set. Export the id printed by launch."
+  validate_run_id "$VERIFY_RUN_ID"
+  ROOT=/tmp/java-checkers-verify/$VERIFY_RUN_ID
+  EVIDENCE=/tmp/java-checkers-verify-evidence/$VERIFY_RUN_ID
+  SESSION=$ROOT/session.env
+  CHECKER=$ROOT/checker
+}
+
+load_session() {
+  require_run_id
+  [[ -f $SESSION ]] || die "No session at $SESSION. Run launch first."
+  # shellcheck disable=SC1090
+  source "$SESSION"
+  [[ $ROOT == /tmp/java-checkers-verify/$VERIFY_RUN_ID ]] || die "Session root is outside this run."
+  [[ $EVIDENCE == /tmp/java-checkers-verify-evidence/$VERIFY_RUN_ID ]] || die "Session evidence path is outside this run."
+  [[ $CHECKER == "$ROOT/checker" ]] || die "Session checker path is outside this run."
+}
+
+product_files() {
+  printf '%s\n' \
+    run run.ps1 run.cmd \
+    setup setup.ps1 setup.cmd \
+    uninstall uninstall.ps1 uninstall.cmd \
+    format-changed.ps1 plugins.xml quality.init.gradle \
+    checkstyle.xml spotbugs-exclude.xml README.md .gitattributes \
+    hook/pre-commit
+}
+
+java_major() {
+  local bin=$1
+  "$bin" -version 2>&1 | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p' | head -1
+}
+
+resolve_bin() {
+  local name=$1
+  if (cd /tmp && "$name" -version >/dev/null 2>&1); then
+    (cd /tmp && command -v "$name")
+    return 0
+  fi
+  if command -v mise >/dev/null 2>&1; then
+    local resolved
+    resolved=$(cd "$SOURCE" && mise which "$name" 2>/dev/null || true)
+    if [[ -n $resolved && -x $resolved ]]; then
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+cmd_launch() {
+  [[ -d $SOURCE/.git || -f $SOURCE/.git ]] || die "Run launch from the java-checkers checkout, not from a disposable copy."
+  [[ -f $SOURCE/run.ps1 && -f $SOURCE/format-changed.ps1 && -f $SOURCE/setup.ps1 ]] || die "Checker scripts are missing under $SOURCE."
+  command -v pwsh >/dev/null 2>&1 || die "pwsh is not on PATH."
+  command -v git >/dev/null 2>&1 || die "git is not on PATH."
+  local java_bin major
+  java_bin=$(resolve_bin java) || die "No JDK runs outside this checkout. Install JDK 17 or set a global mise Java."
+  major=$(java_major "$java_bin")
+  [[ -n $major && $major -ge 17 ]] || die "JDK 17 or newer is required (found major: ${major:-unknown} at $java_bin)."
+  local mvn_bin= gradle_bin=
+  mvn_bin=$(resolve_bin mvn || true)
+  gradle_bin=$(resolve_bin gradle || true)
+
+  local run_id
+  if [[ -n ${VERIFY_RUN_ID:-} ]]; then
+    validate_run_id "$VERIFY_RUN_ID"
+    run_id=$VERIFY_RUN_ID
+  else
+    run_id=$(date -u +%Y%m%dT%H%M%SZ)-$$
+  fi
+  ROOT=/tmp/java-checkers-verify/$run_id
+  EVIDENCE=/tmp/java-checkers-verify-evidence/$run_id
+  [[ ! -e $ROOT ]] || die "Run root already exists: $ROOT"
+  [[ ! -e $EVIDENCE ]] || die "Evidence already exists for $run_id. Unset VERIFY_RUN_ID and launch again."
+  mkdir -p "$EVIDENCE" "$ROOT/projects" "$ROOT/marks" "$ROOT/worktrees" "$ROOT/checker"
+  tar -C "$SOURCE" --exclude .git -cf - . | tar -C "$ROOT/checker" -xf -
+  [[ ! -e $ROOT/checker/.git ]] || die "Checker copy still has .git."
+  [[ -f $ROOT/checker/.gitattributes ]] || die "Checker copy is missing .gitattributes."
+
+  SESSION=$ROOT/session.env
+  {
+    printf 'RUN_ID=%q\n' "$run_id"
+    printf 'ROOT=%q\n' "$ROOT"
+    printf 'CHECKER=%q\n' "$ROOT/checker"
+    printf 'EVIDENCE=%q\n' "$EVIDENCE"
+    printf 'SOURCE=%q\n' "$SOURCE"
+    printf 'SESSION=%q\n' "$SESSION"
+    printf 'JAVA_BIN=%q\n' "$java_bin"
+    printf 'MVN_BIN=%q\n' "$mvn_bin"
+    printf 'GRADLE_BIN=%q\n' "$gradle_bin"
+  } >"$SESSION"
+  cp "$SESSION" "$EVIDENCE/session.env"
+
+  local porcelain=clean
+  if [[ -n $(git -C "$SOURCE" status --porcelain) ]]; then
+    porcelain=dirty
+  fi
+  local mvn_state=absent gradle_state=absent
+  [[ -n $mvn_bin ]] && mvn_state=present
+  [[ -n $gradle_bin ]] && gradle_state=present
+  {
+    printf 'READY\n'
+    printf 'RUN_ID=%s\n' "$run_id"
+    printf 'ROOT=%s\n' "$ROOT"
+    printf 'CHECKER=%s\n' "$ROOT/checker"
+    printf 'EVIDENCE=%s\n' "$EVIDENCE"
+    printf 'SOURCE=%s\n' "$SOURCE"
+    printf 'source_head=%s\n' "$(git -C "$SOURCE" rev-parse HEAD)"
+    printf 'source_worktree=%s\n' "$porcelain"
+    printf 'pwsh=%s\n' "$(pwsh -NoProfile -Command 'Write-Output $PSVersionTable.PSVersion.ToString()')"
+    printf 'java_bin=%s\n' "$java_bin"
+    printf 'java=%s\n' "$("$java_bin" -version 2>&1 | head -1)"
+    printf 'git=%s\n' "$(git --version)"
+    printf 'mvn=%s\n' "$mvn_state"
+    printf 'gradle=%s\n' "$gradle_state"
+    if [[ $porcelain == dirty ]]; then
+      printf '%s\n' '--- source status ---'
+      git -C "$SOURCE" status --porcelain
+    fi
+  } | tee "$EVIDENCE/launch.txt"
+  printf 'export VERIFY_RUN_ID=%q\n' "$run_id"
+}
+
+project_dir() {
+  local name=$1
+  validate_name "$name"
+  printf '%s\n' "$ROOT/projects/$name"
+}
+
+mark_path() {
+  local name=$1
+  printf '%s\n' "$ROOT/marks/$name"
+}
+
+cmd_new_project() {
+  load_session
+  local name=${1:-}
+  [[ -n $name ]] || die "new-project requires a project name."
+  local project
+  project=$(project_dir "$name")
+  [[ ! -e $project ]] || die "Project already exists: $project"
+  mkdir -p "$project"
+  git -C "$project" init -q
+  git -C "$project" config user.name 'Java Checkers Verify'
+  git -C "$project" config user.email 'verify@example.com'
+  git -C "$project" config commit.gpgsign false
+  git -C "$project" config tag.gpgsign false
+  git -C "$project" config core.autocrlf false
+  git -C "$project" commit -q --allow-empty -m 'Initial'
+  printf '%s\n' "$project" >"$(mark_path "$name")"
+  printf 'PROJECT=%s\n' "$project"
+}
+
+installation_state() {
+  local project=$1
+  local installed=$project/.local/quality/run.ps1
+  if [[ ! -e $project/.local/quality ]]; then
+    printf 'absent\n'
+    return 0
+  fi
+  if [[ ! -f $installed ]]; then
+    printf 'foreign\n'
+    return 0
+  fi
+  if cmp -s "$installed" "$CHECKER/run.ps1"; then
+    printf 'ours\n'
+    return 0
+  fi
+  printf 'foreign\n'
+}
+
+hook_state() {
+  local project=$1
+  local hook
+  hook=$(git -C "$project" rev-parse --path-format=absolute --git-path hooks/pre-commit 2>/dev/null) || {
+    printf 'absent\n'
+    return 0
+  }
+  if [[ ! -f $hook ]]; then
+    printf 'absent\n'
+    return 0
+  fi
+  local expected actual
+  expected=$(mktemp)
+  actual=$(mktemp)
+  tr -d '\r' <"$CHECKER/hook/pre-commit" >"$expected"
+  tr -d '\r' <"$hook" >"$actual"
+  if [[ -x $hook ]] && cmp -s "$expected" "$actual"; then
+    printf 'ours\n'
+  else
+    printf 'foreign\n'
+  fi
+  rm -f "$expected" "$actual"
+}
+
+exclude_state() {
+  local project=$1
+  local exclude
+  exclude=$(git -C "$project" rev-parse --path-format=absolute --git-path info/exclude 2>/dev/null) || {
+    printf 'absent\n'
+    return 0
+  }
+  if [[ -f $exclude ]] && grep -Eq '^[[:space:]]*\.local/?[[:space:]]*$' "$exclude"; then
+    printf 'present\n'
+    return 0
+  fi
+  printf 'absent\n'
+}
+
+checker_copy_state() {
+  local file
+  while IFS= read -r file; do
+    [[ -f $SOURCE/$file && -f $CHECKER/$file ]] || return 1
+    cmp -s "$SOURCE/$file" "$CHECKER/$file" || return 1
+  done < <(product_files)
+  [[ -x $CHECKER/setup && -x $CHECKER/run && -x $CHECKER/uninstall ]] || return 1
+  return 0
+}
+
+append_failure() {
+  local failures_file=$1
+  shift
+  printf '%s\n' "$*" >>"$failures_file"
+}
+
+cmd_doctor() {
+  load_session
+  local name= git_path=
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --git)
+        [[ -n ${2:-} ]] || die "doctor --git requires a path."
+        git_path=$2
+        shift 2
+        ;;
+      *)
+        [[ -z $name ]] || die "doctor accepts one project name."
+        name=$1
+        shift
+        ;;
+    esac
+  done
+
+  local failures
+  failures=$(mktemp)
+  local pwsh_version java_line git_line major
+  if pwsh_version=$(pwsh -NoProfile -Command 'Write-Output $PSVersionTable.PSVersion.ToString()'); then
+    :
+  else
+    pwsh_version=missing
+    append_failure "$failures" "pwsh is not on PATH."
+  fi
+  if [[ -n ${JAVA_BIN:-} && -x ${JAVA_BIN} ]]; then
+    java_line=$("$JAVA_BIN" -version 2>&1 | head -1)
+    major=$(java_major "$JAVA_BIN")
+    if [[ -z $major || $major -lt 17 ]]; then
+      append_failure "$failures" "JDK 17 or newer is required."
+    fi
+  else
+    java_line=missing
+    append_failure "$failures" "Launch did not resolve a JDK that runs in a target project."
+  fi
+  if command -v git >/dev/null 2>&1; then
+    git_line=$(git --version)
+  else
+    git_line=missing
+    append_failure "$failures" "git is not on PATH."
+  fi
+
+  local copy_state=stale origin_state=absent
+  if checker_copy_state; then
+    copy_state=current
+  else
+    append_failure "$failures" "Checker copy does not match the checkout. Launch again."
+  fi
+  if git -C "$CHECKER" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    origin_state=present
+    append_failure "$failures" "Checker copy has a git directory. Launch must strip version control."
+  fi
+
+  local mvn_state=absent gradle_state=absent
+  [[ -n ${MVN_BIN:-} && -x ${MVN_BIN} ]] && mvn_state=present
+  [[ -n ${GRADLE_BIN:-} && -x ${GRADLE_BIN} ]] && gradle_state=present
+
+  local project= project_label=none
+  if [[ -n $git_path ]]; then
+    [[ -z $name ]] || die "Pass a project name or --git, not both."
+    project=$(readlink -f "$git_path")
+    project_label=$project
+    local root_real
+    root_real=$(readlink -f "$ROOT")
+    [[ $project == "$root_real"/* ]] || append_failure "$failures" "Worktree is outside this run: $project"
+    local common main mark
+    common=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+    main=$(dirname "$common")
+    if [[ ! -d $main/.git && ! -f $main/.git ]]; then
+      append_failure "$failures" "Cannot resolve the main repository for $project."
+    else
+      local found=0 marked name_path
+      for marked in "$ROOT/marks"/*; do
+        [[ -f $marked ]] || continue
+        name_path=$(cat "$marked")
+        if [[ $(readlink -f "$name_path") == "$(readlink -f "$main")" ]]; then
+          found=1
+          break
+        fi
+      done
+      [[ $found -eq 1 ]] || append_failure "$failures" "Worktree does not belong to a project from this run."
+    fi
+  elif [[ -n $name ]]; then
+    validate_name "$name"
+    project=$(project_dir "$name")
+    project_label=$name
+    local mark
+    mark=$(mark_path "$name")
+    if [[ ! -d $project/.git && ! -f $project/.git ]]; then
+      append_failure "$failures" "Project is not a git repository: $project"
+    fi
+    if [[ ! -f $mark || $(cat "$mark") != "$project" ]]; then
+      append_failure "$failures" "Project was not created by this run: $name"
+    fi
+  fi
+
+  local inst=none hook=none exclude=none
+  if [[ -n $project && -d $project ]]; then
+    inst=$(installation_state "$project")
+    hook=$(hook_state "$project")
+    exclude=$(exclude_state "$project")
+    if [[ $inst == foreign ]]; then
+      append_failure "$failures" "Installation is not the checker copy for this run."
+    fi
+    if [[ $inst == ours && $hook != ours ]]; then
+      append_failure "$failures" "Pre-commit hook is missing or does not match the checker copy."
+    fi
+    if [[ $inst == ours && $exclude != present ]]; then
+      append_failure "$failures" ".git/info/exclude does not ignore .local/."
+    fi
+    if [[ $inst == absent && $hook == foreign ]]; then
+      append_failure "$failures" "An unrelated pre-commit hook is installed."
+    fi
+  fi
+
+  local source_state=clean
+  if [[ -n $(git -C "$SOURCE" status --porcelain) ]]; then
+    source_state=dirty
+  fi
+  if [[ -s $failures ]]; then
+    printf 'DOCTOR_FAIL\n'
+  else
+    printf 'DOCTOR_OK\n'
+  fi
+  printf 'pwsh: %s\n' "$pwsh_version"
+  printf 'java_bin: %s\n' "${JAVA_BIN:-missing}"
+  printf 'java: %s\n' "$java_line"
+  printf 'git: %s\n' "$git_line"
+  printf 'mvn: %s\n' "$mvn_state"
+  printf 'gradle: %s\n' "$gradle_state"
+  printf 'source_head: %s\n' "$(git -C "$SOURCE" rev-parse HEAD)"
+  printf 'source_worktree: %s\n' "$source_state"
+  printf 'checker_copy: %s\n' "$copy_state"
+  printf 'checker_origin: %s\n' "$origin_state"
+  printf 'project: %s\n' "$project_label"
+  printf 'installation: %s\n' "$inst"
+  printf 'hook: %s\n' "$hook"
+  printf 'exclude: %s\n' "$exclude"
+  if [[ -s $failures ]]; then
+    sed 's/^/failure: /' "$failures"
+    rm -f "$failures"
+    exit 1
+  fi
+  rm -f "$failures"
+}
+
+cmd_record() {
+  load_session
+  local name=${1:-}
+  [[ -n $name ]] || die "record requires a project name."
+  shift
+  [[ ${1:-} == -- ]] || die "record requires -- before the command."
+  shift
+  [[ $# -gt 0 ]] || die "record requires a command."
+  local project
+  project=$(project_dir "$name")
+  [[ -d $project ]] || die "No project at $project. Run new-project first."
+  local mark
+  mark=$(mark_path "$name")
+  [[ -f $mark && $(cat "$mark") == "$project" ]] || die "Refusing to drive a project this run did not create."
+
+  local dir=$EVIDENCE/$name
+  mkdir -p "$dir"
+  shopt -s nullglob
+  local existing=("$dir"/[0-9][0-9][0-9].txt)
+  local n=$(( ${#existing[@]} + 1 ))
+  shopt -u nullglob
+  local transcript stdout stderr pidfile
+  transcript=$(printf '%s/%03d.txt' "$dir" "$n")
+  stdout=$(mktemp)
+  stderr=$(mktemp)
+  pidfile=$(mktemp)
+  local code=0
+  set +e
+  (
+    cd "$project" || exit 127
+    if [[ -n ${JAVA_BIN:-} ]]; then PATH="$(dirname "$JAVA_BIN"):$PATH"; fi
+    if [[ -n ${MVN_BIN:-} ]]; then PATH="$(dirname "$MVN_BIN"):$PATH"; fi
+    if [[ -n ${GRADLE_BIN:-} ]]; then PATH="$(dirname "$GRADLE_BIN"):$PATH"; fi
+    export PATH
+    set -m
+    "$@" >"$stdout" 2>"$stderr" &
+    printf '%s\n' "$!" >"$pidfile"
+    wait "$!"
+  )
+  code=$?
+  set -e
+  if [[ -s $pidfile ]]; then
+    cat "$pidfile" >>"$ROOT/pids"
+  fi
+  {
+    printf 'command:'
+    printf ' %q' "$@"
+    printf '\n'
+    printf 'cwd: %s\n' "$project"
+    printf 'exit: %s\n' "$code"
+    printf '%s\n' '--- stdout ---'
+    cat "$stdout"
+    printf '\n%s\n' '--- stderr ---'
+    cat "$stderr"
+    printf '\n'
+  } >"$transcript"
+  rm -f "$stdout" "$stderr" "$pidfile"
+  printf 'transcript: %s\n' "$transcript"
+  printf 'exit: %s\n' "$code"
+  return "$code"
+}
+
+cmd_cleanup() {
+  load_session
+  if [[ -f $ROOT/pids ]]; then
+    local pid
+    while IFS= read -r pid; do
+      [[ $pid =~ ^[0-9]+$ && $pid -gt 1 ]] || continue
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+      fi
+    done <"$ROOT/pids"
+    sleep 0.5
+    while IFS= read -r pid; do
+      [[ $pid =~ ^[0-9]+$ && $pid -gt 1 ]] || continue
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+      fi
+    done <"$ROOT/pids"
+  fi
+  rm -rf "$ROOT"
+  printf 'cleaned %s\n' "$VERIFY_RUN_ID"
+  printf 'EVIDENCE=%s\n' "$EVIDENCE"
+}
+
+main() {
+  local cmd=${1:-}
+  [[ -n $cmd ]] || { usage; exit 2; }
+  shift
+  case $cmd in
+    launch) cmd_launch "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    new-project) cmd_new_project "$@" ;;
+    record) cmd_record "$@" ;;
+    cleanup) cmd_cleanup "$@" ;;
+    -h|--help|help) usage ;;
+    *) die "Unknown command: $cmd" ;;
+  esac
+}
+
+main "$@"
