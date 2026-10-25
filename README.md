@@ -64,7 +64,7 @@ In Git Bash or Linux/macOS Bash:
 
 A commit checks Google Java Format only on staged changed lines, Checkstyle on staged Java files, and SpotBugs on classes corresponding to staged Java files (including nested classes) under `src/main/java` and `src/test/java`. SpotBugs requires compilation and may compile other project sources. A commit with no staged Java files skips them. Skip one commit with `SKIP_LOCAL_CHECKS=1`.
 
-Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, spillover outside those git-changed lines is discarded, including when a formatted line splits or merges and the line count changes. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
+Formatting uses [Google Java Format](https://github.com/google/google-java-format) on **line ranges from `git diff`**, not the whole file. It detects two- or four-space indentation from unchanged code, falling back to the changed code when needed. Four-space files use Google Java Format's AOSP style; files without indentation clues default to two spaces. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, spillover outside those git-changed lines is discarded, including when a formatted line splits or merges and the line count changes. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
 
 For formatting, normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Normal Checkstyle and SpotBugs runs check the project; add `-PreCommit` to restrict them to staged files/classes. Pre-commit runs select staged Java files only and reject selected files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Standalone formatter apply mode leaves changes unstaged so you can review and stage them.
 
@@ -101,6 +101,7 @@ Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`p
 ```bash
 pwsh -NoProfile -File tests/format-changed.Tests.ps1
 python3 tests/formatter-staged.Tests.py
+python3 tests/formatter-indentation.Tests.py
 python3 tests/bash-launchers.Tests.py
 python3 tests/setup-and-hook.Tests.py
 python3 tests/diagnostics.Tests.py

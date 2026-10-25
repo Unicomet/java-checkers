@@ -161,6 +161,27 @@ function Join-FileLines([string[]]$lines, [string]$newline, [bool]$hasFinalNewli
     return $text
 }
 
+function Get-JavaIndentationWidth([string]$text, [int[]]$affected) {
+    $lines = (Split-FileLines $text).Lines
+    $changed = New-Object 'System.Collections.Generic.HashSet[int]'
+    foreach ($number in $affected) { [void]$changed.Add($number) }
+    # Prefer unchanged code so a misindented edit cannot choose the file's style.
+    foreach ($includeChanged in @($false, $true)) {
+        $width = 0
+        for ($index = 0; $index -lt $lines.Count; $index++) {
+            if (-not $includeChanged -and $changed.Contains($index + 1)) { continue }
+            $line = [string]$lines[$index]
+            if ($line -match '^\s*(//|/\*|\*)') { continue }
+            if ($line -match '^( {2}| {4})\S') {
+                $indent = $Matches[1].Length
+                if ($width -eq 0 -or $indent -lt $width) { $width = $indent }
+            }
+        }
+        if ($width -gt 0) { return $width }
+    }
+    return 2
+}
+
 function Get-DiffHunks([string]$beforeText, [string]$afterText) {
     $dir = Join-Path ([System.IO.Path]::GetTempPath()) ("gjf-diff-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $dir | Out-Null
@@ -310,6 +331,9 @@ foreach ($relative in $paths) {
         $gjfArgs = New-Object System.Collections.Generic.List[string]
         $gjfArgs.Add('-jar')
         $gjfArgs.Add($jar)
+        if ((Get-JavaIndentationWidth $beforeText $affected) -eq 4) {
+            $gjfArgs.Add('--aosp')
+        }
         $gjfArgs.Add('--skip-sorting-imports')
         $gjfArgs.Add('--skip-removing-unused-imports')
         foreach ($range in $ranges) {
