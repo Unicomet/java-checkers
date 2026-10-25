@@ -10,8 +10,41 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+trap {
+    [Console]::Error.WriteLine('Runner error: ' + $_.Exception.ToString())
+    [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
+    [Console]::Error.WriteLine($_.ScriptStackTrace)
+    exit 1
+}
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $qualityPom = Join-Path $repoRoot '.quality-pom.xml'
+$failures = New-Object System.Collections.Generic.List[object]
+
+function Invoke-QualityCheck([string]$Name, [scriptblock]$Action) {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $script:CheckExit = 1
+    try {
+        & $Action *>&1 | ForEach-Object {
+            $line = $_.ToString()
+            $lines.Add($line)
+            Write-Host $line
+        }
+    }
+    catch {
+        $script:CheckExit = 1
+        $errorRecord = $_
+        $details = @($errorRecord.ToString(), $errorRecord.InvocationInfo.PositionMessage,
+            $errorRecord.Exception.ToString(), $errorRecord.ScriptStackTrace) -join "`n"
+        $lines.Add($details)
+        Write-Host $details
+    }
+    if ($script:CheckExit -ne 0) {
+        $failures.Add([pscustomobject]@{ Name = $Name; ExitCode = $script:CheckExit; Output = $lines })
+        Write-Host "FAILED: $Name (exit code $script:CheckExit)"
+    } else {
+        Write-Host "PASSED: $Name"
+    }
+}
 
 function Invoke-Git([string[]]$GitArgs) {
     $saved = $ErrorActionPreference
@@ -29,24 +62,29 @@ function Invoke-Gradle([string]$Task) {
     if (Test-Path -LiteralPath (Join-Path $repoRoot $wrapper)) {
         $command = Join-Path $repoRoot $wrapper
     }
-    $gradleArgs = @('--no-daemon', '--console=plain', '--no-configuration-cache',
+    $gradleArgs = @('--no-daemon', '--console=plain', '--no-configuration-cache', '--stacktrace',
         '--init-script', (Join-Path $PSScriptRoot 'quality.init.gradle'),
         "-PqualityRoot=$PSScriptRoot", "-PqualityPreCommit=$($PreCommit.IsPresent.ToString().ToLowerInvariant())",
         "-PqualityFiles=$($javaFiles -join ',')", $Task)
+    # Windows PowerShell can wrap native stderr as ErrorRecords; preserve it as diagnostics.
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = $null
     & $command @gradleArgs
-    if ($null -eq $LASTEXITCODE) { $script:GradleExit = 1 } else { $script:GradleExit = $LASTEXITCODE }
+    if ($null -eq $LASTEXITCODE) { $script:CheckExit = 1 } else { $script:CheckExit = $LASTEXITCODE }
 }
 
 function Invoke-Maven {
     param([string[]]$MavenArgs)
-    $mvnArgs = @('-B')
+    $mvnArgs = @('-B', '-e')
     if (Test-Path -LiteralPath (Join-Path $repoRoot '.mvn\settings.xml')) {
         $mvnArgs += @('-s', '.mvn/settings.xml')
     }
     $mvnArgs += @('-f', '.quality-pom.xml')
     $mvnArgs += $MavenArgs
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = $null
     & mvn @mvnArgs
-    if ($null -eq $LASTEXITCODE) { $script:MavenExit = 1 } else { $script:MavenExit = $LASTEXITCODE }
+    if ($null -eq $LASTEXITCODE) { $script:CheckExit = 1 } else { $script:CheckExit = $LASTEXITCODE }
 }
 
 if ($All) {
@@ -86,7 +124,6 @@ if ($PreCommit) {
     Write-Host ("Checking {0} staged Java file(s)." -f $javaFiles.Count)
 }
 
-$failed = $false
 try {
     $runFormat = $Tool -eq 'all' -or $Tool -eq 'format'
     $runCheckstyle = $Tool -eq 'all' -or $Tool -eq 'checkstyle'
@@ -96,8 +133,10 @@ try {
         Write-Host 'Running Google Java Format on changed lines'
         $formatArgs = @{ Mode = $Mode }
         if ($PreCommit) { $formatArgs.PreCommit = $true }
-        & (Join-Path $PSScriptRoot 'format-changed.ps1') @formatArgs
-        if ($LASTEXITCODE -ne 0) { $failed = $true }
+        Invoke-QualityCheck 'Google Java Format' {
+            & (Join-Path $PSScriptRoot 'format-changed.ps1') @formatArgs
+            $script:CheckExit = $LASTEXITCODE
+        }
     }
     if (($runCheckstyle -or $runSpotbugs) -and -not $isGradle) {
         if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'pom.xml'))) {
@@ -146,12 +185,10 @@ try {
     if ($runCheckstyle) {
         if ($isGradle) {
             Write-Host 'Running Gradle qualityCheckstyle'
-            Invoke-Gradle 'qualityCheckstyle'
-            if ($script:GradleExit -ne 0) { $failed = $true }
+            Invoke-QualityCheck 'Checkstyle' { Invoke-Gradle 'qualityCheckstyle' }
         } else {
             Write-Host 'Running checkstyle:check'
-            Invoke-Maven @('checkstyle:check')
-            if ($script:MavenExit -ne 0) { $failed = $true }
+            Invoke-QualityCheck 'Checkstyle' { Invoke-Maven @('checkstyle:check') }
         }
     }
     if ($runSpotbugs) {
@@ -159,12 +196,10 @@ try {
         if ($includeTests -eq 'true') { $compileGoal = 'test-compile' }
         if ($isGradle) {
             Write-Host 'Running Gradle qualitySpotbugs'
-            Invoke-Gradle 'qualitySpotbugs'
-            if ($script:GradleExit -ne 0) { $failed = $true }
+            Invoke-QualityCheck 'SpotBugs' { Invoke-Gradle 'qualitySpotbugs' }
         } else {
             Write-Host 'Running spotbugs:check'
-            Invoke-Maven @('-DskipTests', $compileGoal, 'spotbugs:check')
-            if ($script:MavenExit -ne 0) { $failed = $true }
+            Invoke-QualityCheck 'SpotBugs' { Invoke-Maven @('-DskipTests', $compileGoal, 'spotbugs:check') }
         }
     }
 }
@@ -174,10 +209,18 @@ finally {
     }
 }
 
-if ($failed) {
+if ($failures.Count -gt 0) {
+    Write-Host ''
+    Write-Host ('Failed checks: ' + (($failures | ForEach-Object { $_.Name }) -join ', '))
+    foreach ($failure in $failures) {
+        Write-Host ("--- {0}: failure details (exit code {1}) ---" -f $failure.Name, $failure.ExitCode)
+        foreach ($line in $failure.Output) { Write-Host $line }
+    }
     if ($PreCommit) {
         Write-Host 'Commit blocked. Stage the fixes and commit again.'
-        Write-Host 'To format the changed lines: ./.local/quality/run -Mode apply -PreCommit'
+        if ($failures | Where-Object { $_.Name -eq 'Google Java Format' }) {
+            Write-Host 'To format the changed lines: ./.local/quality/run -Tool format -Mode apply -PreCommit'
+        }
         Write-Host 'To skip once: set SKIP_LOCAL_CHECKS=1 and commit again.'
     }
     exit 1

@@ -330,7 +330,7 @@ foreach ($relative in $paths) {
 
         if ($Mode -eq 'check') {
             if ($changed) {
-                Write-Host $relative
+                Write-Host "Formatting differs on changed lines in $relative"
                 $failed = $true
             }
         } else {
