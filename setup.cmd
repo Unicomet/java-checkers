@@ -1,3 +1,4 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" %*
+set "JAVA_CHECKERS_QUALITY_ROOT=%~dp0"
+"%~dp0java-checkers.exe" setup %*
 exit /b %ERRORLEVEL%

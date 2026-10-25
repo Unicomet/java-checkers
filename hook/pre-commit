@@ -5,13 +5,10 @@ if [ -n "$SKIP_LOCAL_CHECKS" ]; then
   echo "Skipping local Checkstyle, SpotBugs, and formatter."
   exit 0
 fi
-if command -v pwsh >/dev/null 2>&1; then
-  pwsh -NoProfile -File "$root/.local/quality/run.ps1" -PreCommit
-  exit $?
+quality="$root/.local/quality"
+if [ ! -x "$quality/java-checkers" ]; then
+  echo "java-checkers binary is missing from $quality. Rebuild the checkers and run setup again." >&2
+  exit 1
 fi
-if command -v powershell.exe >/dev/null 2>&1; then
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$root/.local/quality/run.ps1" -PreCommit
-  exit $?
-fi
-echo "PowerShell (pwsh or powershell.exe) is required for local quality checks." >&2
-exit 1
+export JAVA_CHECKERS_QUALITY_ROOT="$quality"
+exec "$quality/java-checkers" run -PreCommit

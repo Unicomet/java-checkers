@@ -1,10 +1,14 @@
 #!/bin/sh
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
-if command -v pwsh >/dev/null 2>&1; then
-  exec pwsh -NoProfile -File "$script_dir/setup.ps1" "$@"
+if [ -x "$script_dir/java-checkers" ]; then
+  bin=$script_dir/java-checkers
+elif [ -x "$script_dir/target/release/java-checkers" ]; then
+  bin=$script_dir/target/release/java-checkers
+elif [ -x "$script_dir/target/debug/java-checkers" ]; then
+  bin=$script_dir/target/debug/java-checkers
+else
+  echo "java-checkers binary is missing. From the checker checkout run: cargo build --release" >&2
+  exit 1
 fi
-if command -v powershell.exe >/dev/null 2>&1; then
-  exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script_dir/setup.ps1" "$@"
-fi
-echo "PowerShell (pwsh or powershell.exe) is required. Install it and retry." >&2
-exit 1
+export JAVA_CHECKERS_QUALITY_ROOT="$script_dir"
+exec "$bin" setup "$@"

@@ -10,7 +10,7 @@ In Git Bash on Windows or Bash on Linux/macOS, run this command from the checker
 ./setup /path/to/your-project
 ```
 
-Paths containing spaces must be quoted. In Git Bash, use Bash paths such as `/c/Users/you/my-project`. The Bash launchers use `pwsh` when available and fall back to `powershell.exe` on Windows. Linux/macOS require PowerShell Core (`pwsh`) on PATH.
+Paths containing spaces must be quoted. In Git Bash, use Bash paths such as `/c/Users/you/my-project`. The launchers call the `java-checkers` Rust binary next to the script.
 
 In Windows Command Prompt or PowerShell:
 
@@ -90,22 +90,34 @@ For Maven, the runner adds the tool plugins to a temporary copy of the project `
 
 Gradle projects are detected by `build.gradle`, `build.gradle.kts`, `settings.gradle`, or `settings.gradle.kts` (Gradle takes precedence if a POM also exists). The runner prefers `gradlew` / `gradlew.bat`, falling back to `gradle` on PATH. It supplies `quality.init.gradle` with [`--init-script`](https://docs.gradle.org/current/userguide/init_scripts.html); no build file edits or checker plugins are required. It adds `qualityCheckstyle` and `qualitySpotbugs` tasks to Java projects, using the same checker versions and configuration as Maven. Gradle resolves the checker dependencies from Maven Central. SpotBugs reads the auxiliary dependency classpath from a UTF-8 file to avoid Windows command-line length limits. It compiles the selected source sets and writes `build/reports/local-quality/spotbugs.xml` in each Java project. Checkstyle uses Java source sets; staged selection and formatting recognize standard `src/main/java` and `src/test/java` paths, including Gradle subprojects. Custom source layouts are supported only by normal Gradle lint runs.
 
-Each checker prints a `PASSED` or `FAILED` status. Failed-check output is repeated in a final summary, so a later successful Gradle task does not hide an earlier failure. Gradle includes exception stack traces (`--stacktrace`), Maven includes execution errors (`-e`), and runner exceptions include PowerShell script stack traces. Formatting differences identify the affected source files; formatting advice appears only when the formatter fails.
+Each checker prints a `PASSED` or `FAILED` status. Failed-check output is repeated in a final summary, so a later successful Gradle task does not hide an earlier failure. Gradle includes exception stack traces (`--stacktrace`), Maven includes execution errors (`-e`), and runner exceptions name the failing source location. Formatting differences identify the affected source files; formatting advice appears only when the formatter fails.
 
 ## Requirements
 
-Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`pwsh` or Windows PowerShell), JDK 17 or newer (for Google Java Format), and network access for the first tool/dependency downloads. Gradle support is verified with Gradle 8.14.3 and JDK 17; other Gradle versions must support running on the installed JDK.
+Git, Maven or Gradle (a project wrapper is preferred for Gradle), JDK 17 or newer (for Google Java Format), and network access for the first tool/dependency downloads. Gradle support is verified with Gradle 8.14.3 and JDK 17; other Gradle versions must support running on the installed JDK. Building the checker binary requires Rust and Cargo. An installed copy includes that binary, so the target project does not need Rust.
 
-## Verify the checker scripts
+## Build
+
+From this checkout:
 
 ```bash
-pwsh -NoProfile -File tests/format-changed.Tests.ps1
+cargo build --release
+cp target/release/java-checkers .
+```
+
+`./setup` and `./run` use that binary. Setup copies it into `.local/quality`.
+
+## Verify the checkers
+
+```bash
+cargo test --bin java-checkers
 python3 tests/formatter-staged.Tests.py
 python3 tests/formatter-indentation.Tests.py
 python3 tests/bash-launchers.Tests.py
 python3 tests/setup-and-hook.Tests.py
 python3 tests/diagnostics.Tests.py
 python3 tests/uninstall.Tests.py
+python3 tests/features.Tests.py
 python3 tests/spotbugs-staged.Tests.py
 python3 tests/gradle.Tests.py
 python3 tests/spotbugs-command-line.Tests.py

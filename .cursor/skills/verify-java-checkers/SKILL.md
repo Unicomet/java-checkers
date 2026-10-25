@@ -21,9 +21,10 @@ From the java-checkers checkout:
 
 Ready output starts with `READY` and includes `export VERIFY_RUN_ID=...`. Export that value in the same shell before any later command. Launch is ready only when all of these are true:
 
-- `pwsh`, `git`, and JDK 17 or newer are on `PATH`.
-- The checkout contains `run.ps1`, `setup.ps1`, and `format-changed.ps1`.
-- A copy of the checkout exists at `$ROOT/checker` with version-control metadata removed.
+- `git` and JDK 17 or newer are on `PATH`.
+- The checkout contains `run`, `setup`, `uninstall`, and `hook/pre-commit`.
+- An executable `java-checkers` binary is beside those scripts, or under `target/release` or `target/debug`. Launch copies that binary and does not run Cargo.
+- A copy of the checkout exists at `$ROOT/checker` with version-control metadata and `target/` removed, and with that binary installed as `java-checkers`.
 
 `mvn` and `gradle` are reported as `present` or `absent`. Launch still succeeds when either is absent. Checkstyle and SpotBugs on Maven need `mvn`. Gradle journeys need `gradle` on `PATH` or a project `gradlew`.
 
@@ -43,7 +44,7 @@ Each drive uses its own project under `$ROOT/projects`. Two run ids can proceed 
 
 This launch copy has no `origin`. `./setup` from it prints `Copied the checkers into` and installs the working tree, including uncommitted checker edits. A user who runs `./setup` from a checkout that has `origin` instead gets `Cloned the checkers into`. That clone is the remote, and it does not contain uncommitted edits. The install feature covers that entry. Published-origin setup also needs network access to that remote.
 
-On Windows the user-facing launchers are `setup.cmd`, `run.cmd`, and `uninstall.cmd`. They forward the same arguments to PowerShell. This harness invokes the Bash launchers with `pwsh`.
+On Windows the user-facing launchers are `setup.cmd`, `run.cmd`, and `uninstall.cmd`. They forward the same arguments to the `java-checkers` binary. This harness invokes the Bash launchers.
 
 ## Doctor
 

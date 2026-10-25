@@ -20,7 +20,7 @@ def run(*args, cwd, ok=True):
 
 def verify(root, kotlin=False):
     checker = root / 'checker'
-    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml', '__pycache__'))
+    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml', 'target', '__pycache__'))
     run('git', 'init', cwd=checker)
     run('git', 'config', 'user.name', 'Checker verification', cwd=checker)
     run('git', 'config', 'user.email', 'checkers@example.com', cwd=checker)

@@ -1,5 +1,4 @@
 @echo off
-@(
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1" %*
-    exit /b
-)
+set "JAVA_CHECKERS_QUALITY_ROOT=%~dp0"
+"%~dp0java-checkers.exe" uninstall %*
+exit /b %ERRORLEVEL%

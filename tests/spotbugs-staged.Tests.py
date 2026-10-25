@@ -18,7 +18,7 @@ def run(*args, cwd, ok=True):
 with tempfile.TemporaryDirectory(prefix='spotbugs-staged-') as temp:
     root = Path(temp)
     checker = root / 'checker'
-    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml'))
+    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml', 'target', '__pycache__'))
     project = root / 'project'
     project.mkdir()
     run('git', 'init', cwd=project)

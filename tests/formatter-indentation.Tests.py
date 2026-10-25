@@ -17,8 +17,15 @@ with tempfile.TemporaryDirectory(prefix='formatter indentation ') as temp:
     root = Path(temp)
     installed = root / '.local/quality'
     installed.mkdir(parents=True)
-    for name in ('run', 'run.ps1', 'format-changed.ps1'):
-        shutil.copy2(SOURCE / name, installed / name)
+    shutil.copy2(SOURCE / 'run', installed / 'run')
+    (installed / 'run').chmod(0o755)
+    binary = next(path for path in (
+        SOURCE / 'java-checkers',
+        SOURCE / 'target' / 'release' / 'java-checkers',
+        SOURCE / 'target' / 'debug' / 'java-checkers',
+    ) if path.is_file())
+    shutil.copy2(binary, installed / 'java-checkers')
+    (installed / 'java-checkers').chmod(0o755)
     run('git', 'init', cwd=root)
     run('git', 'config', 'user.name', 'Indentation test', cwd=root)
     run('git', 'config', 'user.email', 'test@example.com', cwd=root)

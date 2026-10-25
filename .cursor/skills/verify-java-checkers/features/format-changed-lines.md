@@ -16,7 +16,7 @@ Format changed lines rewrites only the Java lines that differ from `HEAD`, or th
 - `./.local/quality/run -Tool format -Mode check`
 - `./.local/quality/run -Tool format -Mode apply`
 - `./.local/quality/run -Tool format -Mode apply -PreCommit`
-- `git commit` after staging a Java change, which runs `.local/quality/run.ps1 -PreCommit`
+- `git commit` after staging a Java change, which runs `.local/quality/java-checkers run -PreCommit`
 - `./.local/quality/run -PreCommit` for the same full pre-commit sequence
 
 On Windows the launcher is `.local\quality\run.cmd` with the same arguments.

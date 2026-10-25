@@ -17,8 +17,15 @@ with tempfile.TemporaryDirectory(prefix='formatter staged ') as temp:
     project = Path(temp)
     installed = project / '.local/quality'
     installed.mkdir(parents=True)
-    for name in ('run', 'run.ps1', 'format-changed.ps1'):
-        shutil.copy2(SOURCE / name, installed / name)
+    shutil.copy2(SOURCE / 'run', installed / 'run')
+    (installed / 'run').chmod(0o755)
+    binary = next(path for path in (
+        SOURCE / 'java-checkers',
+        SOURCE / 'target' / 'release' / 'java-checkers',
+        SOURCE / 'target' / 'debug' / 'java-checkers',
+    ) if path.is_file())
+    shutil.copy2(binary, installed / 'java-checkers')
+    (installed / 'java-checkers').chmod(0o755)
     run('git', 'init', cwd=project)
     run('git', 'config', 'user.name', 'Formatter test', cwd=project)
     run('git', 'config', 'user.email', 'formatter@example.com', cwd=project)

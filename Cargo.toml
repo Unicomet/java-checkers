@@ -1,0 +1,10 @@
+[package]
+name = "java-checkers"
+version = "1.0.0"
+edition = "2021"
+description = "Google Java Format, Checkstyle, and SpotBugs for Maven and Gradle projects"
+publish = false
+
+[dependencies]
+quick-xml = "0.37"
+regex = "1"

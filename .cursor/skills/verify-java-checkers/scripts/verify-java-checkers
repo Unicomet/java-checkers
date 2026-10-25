@@ -56,12 +56,26 @@ load_session() {
 
 product_files() {
   printf '%s\n' \
-    run run.ps1 run.cmd \
-    setup setup.ps1 setup.cmd \
-    uninstall uninstall.ps1 uninstall.cmd \
-    format-changed.ps1 plugins.xml quality.init.gradle \
+    run run.cmd \
+    setup setup.cmd \
+    uninstall uninstall.cmd \
+    plugins.xml quality.init.gradle \
     checkstyle.xml spotbugs-exclude.xml README.md .gitattributes \
+    Cargo.toml Cargo.lock \
+    src/main.rs src/format.rs src/run.rs src/setup.rs src/uninstall.rs src/pom.rs src/gitutil.rs \
     hook/pre-commit
+}
+
+binary_source() {
+  if [[ -x $SOURCE/java-checkers ]]; then
+    printf '%s\n' "$SOURCE/java-checkers"
+  elif [[ -x $SOURCE/target/release/java-checkers ]]; then
+    printf '%s\n' "$SOURCE/target/release/java-checkers"
+  elif [[ -x $SOURCE/target/debug/java-checkers ]]; then
+    printf '%s\n' "$SOURCE/target/debug/java-checkers"
+  else
+    return 1
+  fi
 }
 
 java_major() {
@@ -88,8 +102,10 @@ resolve_bin() {
 
 cmd_launch() {
   [[ -d $SOURCE/.git || -f $SOURCE/.git ]] || die "Run launch from the java-checkers checkout, not from a disposable copy."
-  [[ -f $SOURCE/run.ps1 && -f $SOURCE/format-changed.ps1 && -f $SOURCE/setup.ps1 ]] || die "Checker scripts are missing under $SOURCE."
-  command -v pwsh >/dev/null 2>&1 || die "pwsh is not on PATH."
+  [[ -f $SOURCE/run && -f $SOURCE/setup && -f $SOURCE/uninstall && -f $SOURCE/hook/pre-commit ]] \
+    || die "Checker launchers are missing under $SOURCE."
+  local source_bin
+  source_bin=$(binary_source) || die "java-checkers binary is missing. From the checker checkout run: cargo build --release"
   command -v git >/dev/null 2>&1 || die "git is not on PATH."
   local java_bin major
   java_bin=$(resolve_bin java) || die "No JDK runs outside this checkout. Install JDK 17 or set a global mise Java."
@@ -111,8 +127,12 @@ cmd_launch() {
   [[ ! -e $ROOT ]] || die "Run root already exists: $ROOT"
   [[ ! -e $EVIDENCE ]] || die "Evidence already exists for $run_id. Unset VERIFY_RUN_ID and launch again."
   mkdir -p "$EVIDENCE" "$ROOT/projects" "$ROOT/marks" "$ROOT/worktrees" "$ROOT/checker"
-  tar -C "$SOURCE" --exclude .git -cf - . | tar -C "$ROOT/checker" -xf -
+  tar -C "$SOURCE" --exclude .git --exclude target --exclude java-checkers -cf - . | tar -C "$ROOT/checker" -xf -
+  cp "$source_bin" "$ROOT/checker/java-checkers"
+  chmod 755 "$ROOT/checker/java-checkers" "$ROOT/checker/setup" "$ROOT/checker/run" "$ROOT/checker/uninstall" "$ROOT/checker/hook/pre-commit"
   [[ ! -e $ROOT/checker/.git ]] || die "Checker copy still has .git."
+  [[ ! -e $ROOT/checker/target ]] || die "Checker copy still has target/."
+  [[ -x $ROOT/checker/java-checkers ]] || die "Checker copy is missing the java-checkers binary."
   [[ -f $ROOT/checker/.gitattributes ]] || die "Checker copy is missing .gitattributes."
 
   SESSION=$ROOT/session.env
@@ -145,7 +165,7 @@ cmd_launch() {
     printf 'SOURCE=%s\n' "$SOURCE"
     printf 'source_head=%s\n' "$(git -C "$SOURCE" rev-parse HEAD)"
     printf 'source_worktree=%s\n' "$porcelain"
-    printf 'pwsh=%s\n' "$(pwsh -NoProfile -Command 'Write-Output $PSVersionTable.PSVersion.ToString()')"
+    printf 'binary=%s\n' "$ROOT/checker/java-checkers"
     printf 'java_bin=%s\n' "$java_bin"
     printf 'java=%s\n' "$("$java_bin" -version 2>&1 | head -1)"
     printf 'git=%s\n' "$(git --version)"
@@ -191,16 +211,17 @@ cmd_new_project() {
 
 installation_state() {
   local project=$1
-  local installed=$project/.local/quality/run.ps1
+  local installed=$project/.local/quality/run
+  local binary=$project/.local/quality/java-checkers
   if [[ ! -e $project/.local/quality ]]; then
     printf 'absent\n'
     return 0
   fi
-  if [[ ! -f $installed ]]; then
+  if [[ ! -f $installed || ! -x $binary ]]; then
     printf 'foreign\n'
     return 0
   fi
-  if cmp -s "$installed" "$CHECKER/run.ps1"; then
+  if cmp -s "$installed" "$CHECKER/run" && cmp -s "$binary" "$CHECKER/java-checkers"; then
     printf 'ours\n'
     return 0
   fi
@@ -251,7 +272,10 @@ checker_copy_state() {
     [[ -f $SOURCE/$file && -f $CHECKER/$file ]] || return 1
     cmp -s "$SOURCE/$file" "$CHECKER/$file" || return 1
   done < <(product_files)
-  [[ -x $CHECKER/setup && -x $CHECKER/run && -x $CHECKER/uninstall ]] || return 1
+  [[ -x $CHECKER/setup && -x $CHECKER/run && -x $CHECKER/uninstall && -x $CHECKER/java-checkers ]] || return 1
+  local source_bin
+  source_bin=$(binary_source) || return 1
+  cmp -s "$source_bin" "$CHECKER/java-checkers" || return 1
   return 0
 }
 
@@ -281,13 +305,7 @@ cmd_doctor() {
 
   local failures
   failures=$(mktemp)
-  local pwsh_version java_line git_line major
-  if pwsh_version=$(pwsh -NoProfile -Command 'Write-Output $PSVersionTable.PSVersion.ToString()'); then
-    :
-  else
-    pwsh_version=missing
-    append_failure "$failures" "pwsh is not on PATH."
-  fi
+  local java_line git_line major
   if [[ -n ${JAVA_BIN:-} && -x ${JAVA_BIN} ]]; then
     java_line=$("$JAVA_BIN" -version 2>&1 | head -1)
     major=$(java_major "$JAVA_BIN")
@@ -387,7 +405,7 @@ cmd_doctor() {
   else
     printf 'DOCTOR_OK\n'
   fi
-  printf 'pwsh: %s\n' "$pwsh_version"
+  printf 'binary: %s\n' "$CHECKER/java-checkers"
   printf 'java_bin: %s\n' "${JAVA_BIN:-missing}"
   printf 'java: %s\n' "$java_line"
   printf 'git: %s\n' "$git_line"

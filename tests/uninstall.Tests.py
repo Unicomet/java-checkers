@@ -16,7 +16,7 @@ def run(*args, cwd):
 with tempfile.TemporaryDirectory(prefix='checker uninstall ') as temp:
     root = Path(temp)
     checker = root / 'checker'
-    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml'))
+    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml', 'target', '__pycache__'))
     for scenario in ('normal', 'custom hooks', 'unrelated files', 'modified hook', 'worktree'):
         project = root / scenario
         project.mkdir()

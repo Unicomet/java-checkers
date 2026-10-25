@@ -19,7 +19,7 @@ def run(*args, cwd, env=None, ok=True):
 with tempfile.TemporaryDirectory(prefix='java-checkers-') as temp:
     root = Path(temp)
     checker = root / 'checker'
-    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml'))
+    shutil.copytree(SOURCE, checker, ignore=shutil.ignore_patterns('.git', 'mise.toml', 'target', '__pycache__'))
     project = root / 'project with spaces'
     project.mkdir()
     run('git', 'init', cwd=project)

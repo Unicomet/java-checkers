@@ -36,7 +36,7 @@ Preconditions:
 ## Gotchas
 
 - Uninstall deletes the scripts it is running from when invoked as `.local/quality/uninstall`. A later command in that project has to call `"$CHECKER/uninstall"` or run setup again.
-- A directory at `.local/quality` that has no `run.ps1` or no `hook/pre-commit` is left in place. The message contains `Refusing to remove an unrecognized directory`.
+- A `.local/quality` directory is left in place unless it contains `hook/pre-commit` and one of `run`, `run.ps1`, or `java-checkers`. The message contains `Refusing to remove an unrecognized directory`.
 - Passing a path that is not a Git repository fails. The message contains `Not a git repository`.
 - Uninstall does not edit `pom.xml` or Gradle build files. Compare the witness file after every entry.
 - Cleanup of the verification run is separate. Uninstall does not delete `$EVIDENCE`.
