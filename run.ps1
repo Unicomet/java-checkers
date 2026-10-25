@@ -133,9 +133,23 @@ try {
         Write-Host 'Running Google Java Format on changed lines'
         $formatArgs = @{ Mode = $Mode }
         if ($PreCommit) { $formatArgs.PreCommit = $true }
+        # A complete pre-commit run applies and stages formatting before the other checks.
+        $autoFormat = $PreCommit -and $Tool -eq 'all'
+        if ($autoFormat) { $formatArgs.Mode = 'apply' }
         Invoke-QualityCheck 'Google Java Format' {
             & (Join-Path $PSScriptRoot 'format-changed.ps1') @formatArgs
             $script:CheckExit = $LASTEXITCODE
+            if ($autoFormat -and $script:CheckExit -eq 0) {
+                foreach ($path in $javaFiles) {
+                    $changes = Invoke-Git @('diff', '--name-only', '--', $path)
+                    if ($script:GitExit -ne 0) { throw "Cannot inspect formatting changes in $path" }
+                    if ($changes.Count -gt 0) {
+                        Invoke-Git @('add', '--', $path) | Out-Null
+                        if ($script:GitExit -ne 0) { throw "Cannot stage formatting changes in $path" }
+                        Write-Host "Staged formatting fixes in $path"
+                    }
+                }
+            }
         }
     }
     if (($runCheckstyle -or $runSpotbugs) -and -not $isGradle) {

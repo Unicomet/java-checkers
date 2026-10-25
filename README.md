@@ -66,9 +66,11 @@ A commit checks Google Java Format only on staged changed lines, Checkstyle on s
 
 Formatting uses [Google Java Format](https://github.com/google/google-java-format) (Google style) on **line ranges from `git diff`**, not the whole file. Spotless cannot limit formatting to changed lines, so the format step calls the Google Java Format CLI with `--lines`. After formatting, spillover outside those git-changed lines is discarded, including when a formatted line splits or merges and the line count changes. Import sorting/removal is skipped in line mode so untouched import lines stay put. Untracked new Java files are formatted in full.
 
-For formatting, normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Normal Checkstyle and SpotBugs runs check the project; add `-PreCommit` to restrict them to staged files/classes. Pre-commit runs select staged Java files only and reject selected files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Apply mode leaves changes unstaged so you can review and stage them.
+For formatting, normal runs select tracked Java files changed since `HEAD` (staged or unstaged), plus untracked Java files. Normal Checkstyle and SpotBugs runs check the project; add `-PreCommit` to restrict them to staged files/classes. Pre-commit runs select staged Java files only and reject selected files with unstaged edits. Files merely opened in an editor and unchanged files are never selected. `-All` does not expand the formatter's scope. Generated `notification/avro` sources are excluded. Standalone formatter apply mode leaves changes unstaged so you can review and stage them.
 
-The hook checks formatting and blocks the commit if fixes are needed. Apply and stage fixes, then retry:
+The hook automatically formats Git-changed lines and stages the formatting fixes before running Checkstyle and SpotBugs. A complete `run -PreCommit` invocation does the same. Files with unstaged edits are rejected before formatting, so unrelated unstaged work cannot be included in the commit. Formatter errors, Checkstyle violations, and SpotBugs findings still block the commit.
+
+To apply formatting separately without staging it:
 
 ```bash
 ./.local/quality/run -Tool format -Mode apply -PreCommit
@@ -109,6 +111,6 @@ python3 tests/spotbugs-command-line.Tests.py
 
 The setup test uses a Maven stub. The SpotBugs regression test runs real Maven in a temporary project, verifies a staged nested-class violation blocks the check, and verifies an unstaged class with the same violation is ignored. It needs the tools listed above and access to Maven dependencies.
 
-The Gradle integration test uses real Gradle, generates a project wrapper, and runs `./setup` in Groovy and Kotlin DSL projects. It verifies formatting, Checkstyle, and SpotBugs failures, staged nested-class selection, and an actual successful `git commit` through the installed hook. Put Gradle on PATH to generate the wrapper. Set `QUALITY_EVIDENCE=/path/to/log` to save the complete command transcript.
+The Gradle integration test uses real Gradle, generates a project wrapper, and runs `./setup` in Groovy and Kotlin DSL projects. It verifies automatic formatting and staging during a commit, Checkstyle and SpotBugs failures, staged nested-class selection, and an actual successful `git commit` through the installed hook. Put Gradle on PATH to generate the wrapper. Set `QUALITY_EVIDENCE=/path/to/log` to save the complete command transcript.
 
 See [Gradle verification evidence](docs/gradle-verification.md) for a published commit made through the installed hook and the recorded command output.

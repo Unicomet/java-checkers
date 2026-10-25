@@ -56,8 +56,10 @@ with tempfile.TemporaryDirectory(prefix='java-checkers-') as temp:
         failed = run(str(runner), '-PreCommit', '-Tool', tool, cwd=project, env=dict(env, QUALITY_EXIT='1'), ok=False)
         assert failed.returncode != 0
     java.write_text(java.read_text() + '// unstaged\n')
-    result = run(str(runner), '-PreCommit', '-Tool', 'checkstyle', cwd=project, env=env, ok=False)
+    result = run(str(runner), '-PreCommit', cwd=project, env=env, ok=False)
     assert result.returncode != 0 and 'not staged' in result.stderr
+    assert java.read_text().endswith('// unstaged\n')
+    assert '// unstaged' not in run('git', 'show', ':src/main/java/demo/Example.java', cwd=project).stdout
     # Maven POM indentation must not determine whether tools can run.
     java.write_text('package demo;\nclass Example { int value; }\n')
     for closing in ('\t\t</plugins>', '        </plugins>'):

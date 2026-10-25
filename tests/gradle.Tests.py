@@ -51,11 +51,12 @@ def verify(root, kotlin=False):
     java = module / 'src/main/java/demo/Example.java'
     java.write_text(java.read_text().replace('return "Hello";', 'return   "Hello Gradle";'))
     run('git', 'add', '.', cwd=project)
-    blocked = run('git', 'commit', '-m', 'Must fail formatting', cwd=project, ok=False)
-    assert blocked.returncode != 0 and 'Commit blocked' in blocked.stdout + blocked.stderr
-    run(runner, '-Tool', 'format', '-Mode', 'apply', '-PreCommit', cwd=project)
+    formatted = run('git', 'commit', '-m', 'Automatically format staged Java changes', cwd=project)
+    assert 'Staged formatting fixes' in formatted.stdout + formatted.stderr
     assert 'return "Hello Gradle";' in java.read_text()
-    run('git', 'add', '.', cwd=project)
+    committed = run('git', 'show', 'HEAD:' + java.relative_to(project).as_posix(), cwd=project)
+    assert 'return "Hello Gradle";' in committed.stdout
+    assert not run('git', 'diff', 'HEAD', '--', str(java), cwd=project).stdout
     # Stage a nested-class bug; an untracked bug must never appear in the report.
     staged = java.parent / 'Staged.java'
     bad = '''package demo;
