@@ -4,3 +4,4 @@ hook/pre-commit text eol=lf
 
 /setup text eol=lf
 /run text eol=lf
+/uninstall text eol=lf

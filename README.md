@@ -30,6 +30,20 @@ The script clones this repository into `your-project\.local\quality`, adds `.loc
 
 When `.local\quality` is already a clone of this repository, run `.\setup.cmd` with no path. That installs the hook and the exclude entry.
 
+## Uninstall
+
+From your project's root, run:
+
+```powershell
+.\.local\quality\uninstall.cmd
+```
+
+On Linux or Git Bash, run `./.local/quality/uninstall`. For an older installation, first run `git -C .local/quality pull --ff-only` to get the uninstaller.
+
+This deletes `.local/quality`, including downloaded tools and local checker customizations, and removes the installed pre-commit hook. Modified or unrelated hooks are preserved. The `.local/` ignore entry is removed when no other files remain in `.local`; other exclude entries are preserved. Project build files are left unchanged.
+
+You can also run `./uninstall /path/to/project` (Windows: `.\uninstall.cmd C:\path\to\project`) from a separate checker checkout.
+
 ## Run the checkers
 
 From the project root:
@@ -84,6 +98,7 @@ Git, Maven or Gradle (a project wrapper is preferred for Gradle), PowerShell (`p
 pwsh -NoProfile -File tests/format-changed.Tests.ps1
 python3 tests/bash-launchers.Tests.py
 python3 tests/setup-and-hook.Tests.py
+python3 tests/uninstall.Tests.py
 python3 tests/spotbugs-staged.Tests.py
 python3 tests/gradle.Tests.py
 python3 tests/spotbugs-command-line.Tests.py
