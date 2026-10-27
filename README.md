@@ -105,7 +105,7 @@ cargo build --release
 cp target/release/java-checkers .
 ```
 
-`./setup` and `./run` use that binary. Setup copies it into `.local/quality`.
+`./setup` and `./run` use that binary, and they also find it under `target/release` or `target/debug`. The Windows `.cmd` launchers look for `java-checkers.exe` in those same places. Setup copies the binary into `.local/quality`.
 
 ## Verify the checkers
 

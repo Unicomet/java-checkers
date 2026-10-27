@@ -36,7 +36,25 @@ pub fn git(cwd: &Path, args: &[String]) -> Result<Output, String> {
 pub fn git_lines(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<String>), String> {
     let owned: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
     let output = git(cwd, &owned)?;
-    Ok((status_code(&output), non_empty_stdout(&output)))
+    let code = status_code(&output);
+    // git diff exits 0 when it succeeds, including when files differ.
+    // Exit 1 is a normal result for commands such as ls-files --error-unmatch.
+    // Anything above that is a failed git command, and treating it as an empty
+    // file list would let a commit skip the checkers.
+    if code > 1 {
+        let detail = text_lines(&output.stderr)
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let command = args.join(" ");
+        return Err(if detail.is_empty() {
+            format!("git {command} failed (exit code {code})")
+        } else {
+            format!("git {command} failed (exit code {code}): {detail}")
+        });
+    }
+    Ok((code, non_empty_stdout(&output)))
 }
 
 pub fn run_inherit_logged(command: &mut Command) -> Result<(i32, Vec<String>), String> {
@@ -80,4 +98,16 @@ pub fn same_path(left: &Path, right: &Path) -> bool {
             .to_string()
     };
     normalize(left).eq_ignore_ascii_case(&normalize(right))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn git_lines_reports_a_failed_command() {
+        let err = git_lines(Path::new("."), &["diff", "--no-such-flag"]).unwrap_err();
+        assert!(err.contains("exit code"), "{err}");
+        assert!(err.contains("git diff --no-such-flag"), "{err}");
+    }
 }
