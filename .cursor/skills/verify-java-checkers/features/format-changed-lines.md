@@ -40,8 +40,9 @@ package demo;
 class Example {
   int value = 1;
 
-  void untouched() {
+  int untouched() {
     int  keep=2;
+    return keep + value;
   }
 }
 ```
@@ -67,6 +68,7 @@ class Example {
 - `-PreCommit` rejects a selected file that also has unstaged edits. The command exits non-zero and the message contains `has edits that are not staged`.
 - The download line is `Downloading google-java-format-1.24.0-all-deps.jar`. In this recipe the check command prints it. Apply does not print it again once the jar is present.
 - Line formatting passes `--skip-sorting-imports` and `--skip-removing-unused-imports`. Import order and unused imports stay as written.
-- Indentation is the smallest 2-space or 4-space indent. Unchanged lines are considered first, then changed lines. Otherwise the width is 2. Width 4 adds `--aosp`. This fixture stays at width 2 because `  void untouched()` is an unchanged 2-space line, so the formatted line is `  int value = 3;`.
+- Indentation is the smallest 2-space or 4-space indent. Unchanged lines are considered first, then changed lines. Otherwise the width is 2. Width 4 adds `--aosp`. This fixture stays at width 2 because `  int untouched()` is an unchanged 2-space line, so the formatted line is `  int value = 3;`.
+- The commit hook runs SpotBugs on the staged file. `value` and `keep` are both read, so the fixture does not trip `URF_UNREAD_FIELD` or a dead local store. An unused field fails the hook even when the formatting change itself is valid.
 - When listing changed files, a git exit code above 1 fails the format tool. Stdout contains `git ... failed (exit code N)` and `FAILED: Google Java Format`, and it does not contain `No changed Java files to format.` A pre-commit run hits that failure while building the staged list and prints `Runner error:` instead of the no-staged-files skip.
 - `git commit` on a project with no `pom.xml` and no Gradle settings or build file fails before a commit exists, because the hook still runs Checkstyle and SpotBugs.
