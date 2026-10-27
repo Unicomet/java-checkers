@@ -42,7 +42,7 @@ source "/tmp/java-checkers-verify/$VERIFY_RUN_ID/session.env"
 
 Each drive uses its own project under `$ROOT/projects`. Two run ids can proceed side by side. Do not point a drive at the java-checkers checkout or at any `.local/quality` directory this run did not install.
 
-This launch copy has no `origin`. `./setup` from it prints `Copied the checkers into` and installs the working tree, including uncommitted checker edits. A user who runs `./setup` from a checkout that has `origin` instead gets `Cloned the checkers into`. That clone is the remote, and it does not contain uncommitted edits. The install feature covers that entry. Published-origin setup also needs network access to that remote.
+This launch copy has no `origin`. `./setup` from it prints `Copied the checkers into` and installs the working-tree bytes of the launcher scripts, config, `hook/`, `src/`, `examples/`, and the running `java-checkers` binary. Uncommitted edits to those files are installed. Other files, such as `tests/` and `mise.toml`, are not. A user who runs `./setup` from a checkout that has `origin` instead gets `Cloned the checkers into`. That clone is the remote plus the binary that performed the clone. Other uncommitted files are not in it. The install feature covers that entry. Published-origin setup also needs network access to that remote.
 
 On Windows the user-facing launchers are `setup.cmd`, `run.cmd`, and `uninstall.cmd`. They forward the same arguments to the `java-checkers` binary. This harness invokes the Bash launchers.
 
@@ -75,7 +75,7 @@ source "$EVIDENCE/session.env"
 
 Invoke the installed runner at `$ROOT/projects/<name>/.local/quality/run`. The runner finds the project two directories above its own script. Running `./run` from the java-checkers checkout does not check that checkout.
 
-Stable handles are the command arguments and the stdout sentences in the feature files. Treat those sentences as literal. `-Tool` is `all`, `format`, `checkstyle`, or `spotbugs`. `-Mode` is `check` or `apply`. `-PreCommit` limits Checkstyle and SpotBugs to staged Java files and, when the tool is `all`, formats those files and stages the formatting fixes. `-All` prints `Google Java Format only edits Git-changed line ranges; -All does not expand its scope.`
+Stable handles are the command arguments and the stdout sentences in the feature files. Treat those sentences as literal. `-Tool` is `all`, `format`, `checkstyle`, or `spotbugs`. `-Mode` is `check` or `apply`. With no flags, `run` uses tool `all` and mode `check`, and it does not limit the run to staged files. It checks format on changed lines, then runs Checkstyle and SpotBugs on the whole project, and it still runs the later tools after a format failure. `-PreCommit` limits Checkstyle and SpotBugs to staged Java files. When the tool is `all`, that run forces format apply and stages the formatting fixes, including when `-Mode check` was also passed. `-All` prints `Google Java Format only edits Git-changed line ranges; -All does not expand its scope.`
 
 Each checker status line is `PASSED: <name>` or `FAILED: <name> (exit code N)`. A failed pre-commit run also prints `Commit blocked. Stage the fixes and commit again.`
 

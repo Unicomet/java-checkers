@@ -27,7 +27,7 @@ Preconditions:
 
 - Launch and the baseline doctor in [README.md](./README.md) succeeded.
 - `java` reports major 17 or newer.
-- The first apply downloads `google-java-format-1.24.0-all-deps.jar` into the project's `.local/quality/tools/` when that jar is absent. That download needs network access.
+- The first format command that selects a Java file downloads `google-java-format-1.24.0-all-deps.jar` into the project's `.local/quality/tools/` when that jar is absent. Check and apply both do this. A run that selects no Java file does not download it. That download needs network access.
 
 Project name: `format-changed-lines`. `$PROJECT` is `$ROOT/projects/format-changed-lines`.
 
@@ -62,9 +62,11 @@ class Example {
 
 - Commit the spillover fixture before setup. The hook formats every line of a newly added file.
 - `run -Tool format` reads changes since `HEAD`, staged and unstaged. `-PreCommit` reads the index only.
-- Apply without `-PreCommit`, and apply with `-Tool format -PreCommit`, leave the index unchanged. Staging happens on `run -PreCommit` and on `git commit`, where the tool is `all`.
-- A file under `notification/avro/` is ignored. A Java file outside `src/main/java` or `src/test/java` is ignored.
+- Apply without `-PreCommit`, and apply with `-Tool format -PreCommit`, leave the index unchanged. Staging happens on `run -PreCommit` and on `git commit`, where the tool is `all`. That path forces apply, so `-Mode check` does not keep check mode.
+- A path containing `/notification/avro/` is ignored. Standalone format selects `src/main/java` and `src/test/java` at the repository root and under a directory prefix. A non-Gradle pre-commit run selects only the root paths. Gradle pre-commit uses the prefixed paths too.
 - `-PreCommit` rejects a selected file that also has unstaged edits. The command exits non-zero and the message contains `has edits that are not staged`.
-- The first format run prints `Downloading google-java-format-1.24.0-all-deps.jar` when the installation does not already have it.
-- Four-space indentation in the unchanged lines selects Google Java Format's AOSP style for the changed lines. The two-space fixture above does not exercise AOSP.
+- The download line is `Downloading google-java-format-1.24.0-all-deps.jar`. In this recipe the check command prints it. Apply does not print it again once the jar is present.
+- Line formatting passes `--skip-sorting-imports` and `--skip-removing-unused-imports`. Import order and unused imports stay as written.
+- Indentation is the smallest 2-space or 4-space indent. Unchanged lines are considered first, then changed lines. Otherwise the width is 2. Width 4 adds `--aosp`. This fixture stays at width 2 because `  void untouched()` is an unchanged 2-space line, so the formatted line is `  int value = 3;`.
+- When listing changed files, a git exit code above 1 fails the format tool. Stdout contains `git ... failed (exit code N)` and `FAILED: Google Java Format`, and it does not contain `No changed Java files to format.` A pre-commit run hits that failure while building the staged list and prints `Runner error:` instead of the no-staged-files skip.
 - `git commit` on a project with no `pom.xml` and no Gradle settings or build file fails before a commit exists, because the hook still runs Checkstyle and SpotBugs.

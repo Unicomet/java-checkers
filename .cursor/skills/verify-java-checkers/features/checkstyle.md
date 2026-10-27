@@ -1,6 +1,6 @@
 # Checkstyle
 
-Checkstyle reads `.local/quality/checkstyle.xml` and fails the run when a selected Java file violates it. A full run checks the project's Java sources. A pre-commit run checks staged files under `src/main/java` and `src/test/java` and ignores other Java files. The project's `pom.xml` or Gradle build files stay unchanged.
+Checkstyle reads `.local/quality/checkstyle.xml` and fails the run when a selected Java file violates it. A full run checks the project's Java sources except paths containing `/notification/avro/`. A pre-commit run checks staged files under `src/main/java` and `src/test/java`, skips that same avro path, and ignores other Java files. On a non-Gradle project the staged path is at the repository root. Gradle also accepts it under a subproject. The project's `pom.xml` or Gradle build files stay unchanged.
 
 ## Sub-features
 
@@ -48,6 +48,7 @@ Write `src/main/java/demo/Unstaged.java` with the same text and the type name `U
 ## Gotchas
 
 - A Gradle settings or build file makes the runner use Gradle even when `pom.xml` exists.
+- A pre-commit run whose only staged Java file is under `/notification/avro/` prints `No staged Java files. Checkstyle, SpotBugs, and the formatter were skipped.` and exits 0. That is a skip.
 - `-PreCommit` with no staged Java file prints `No staged Java files. Checkstyle, SpotBugs, and the formatter were skipped.` and exits `0`. That is a skip.
 - A staged file with extra unstaged edits fails before Checkstyle. The message contains `has edits that are not staged`.
 - `SKIP_LOCAL_CHECKS=1 git commit` prints `Skipping local Checkstyle, SpotBugs, and formatter.` and does not run Checkstyle.

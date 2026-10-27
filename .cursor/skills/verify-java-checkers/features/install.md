@@ -4,7 +4,7 @@ Install copies or clones java-checkers into `.local/quality`, installs an execut
 
 ## Sub-features
 
-- `install-copy` installs the working tree when the checker checkout has no `origin`.
+- `install-copy` installs the working-tree checker files when the checker checkout has no `origin`.
 - `install-clone` installs by cloning the checker checkout's `origin`.
 - `install-hook` writes an executable `pre-commit` hook that runs `.local/quality/java-checkers run -PreCommit`.
 - `install-exclude` adds `.local/` to `.git/info/exclude`.
@@ -31,7 +31,7 @@ Preconditions:
 Project name: `spaced project`. `$PROJECT` is `$ROOT/projects/spaced project`.
 
 - **Create the project.** Run `verify-java-checkers new-project "spaced project"` and `verify-java-checkers doctor "spaced project"`. Doctor prints `DOCTOR_OK` and `installation: absent`.
-- **Copy this working tree.** Run `verify-java-checkers record "spaced project" -- "$CHECKER/setup" "$PROJECT"`. Exit `0`. Stdout contains `Copied the checkers into`, `This checkout has no origin remote, so the copy has no git history.`, `Installed the pre-commit hook. It runs the formatter, Checkstyle, and SpotBugs.`, and `Added .local/ to .git/info/exclude.` `$PROJECT/.local/quality/run` and `$PROJECT/.local/quality/java-checkers` exist. Doctor prints `installation: ours`, `hook: ours`, and `exclude: present`. The hook file is executable and contains `java-checkers` and `run -PreCommit`.
+- **Copy the checker files.** Run `verify-java-checkers record "spaced project" -- "$CHECKER/setup" "$PROJECT"`. Exit `0`. Stdout contains `Copied the checkers into`, `This checkout has no origin remote, so the copy has no git history.`, `Installed the pre-commit hook. It runs the formatter, Checkstyle, and SpotBugs.`, and `Added .local/ to .git/info/exclude.` `$PROJECT/.local/quality/run` and `$PROJECT/.local/quality/java-checkers` exist. Doctor prints `installation: ours`, `hook: ours`, and `exclude: present`. The hook file is executable and contains `java-checkers` and `run -PreCommit`.
 - **Run setup again.** Run the same `record` command. Exit `0`. Stdout contains `Checkers are already installed.`, `Pre-commit hook is already installed.`, and `.git/info/exclude already ignores .local/.`
 - **Linked worktree.** Run `verify-java-checkers record "spaced project" -- git worktree add -b linked "$ROOT/worktrees/linked" HEAD`. Exit `0`. Run `verify-java-checkers doctor --git "$ROOT/worktrees/linked"`. It prints `installation: absent` and `DOCTOR_OK`. Run `verify-java-checkers record "spaced project" -- "$CHECKER/setup" "$ROOT/worktrees/linked"`. Exit `0`. `$ROOT/worktrees/linked/.local/quality/run` exists. Doctor `--git` prints `installation: ours` and `hook: ours`.
 - **Unrelated hook.** Create another project with `verify-java-checkers new-project "foreign hook"`. Write an executable `.git/hooks/pre-commit` containing `#!/bin/sh` and `echo existing-hook`. Run `verify-java-checkers record "foreign hook" -- "$CHECKER/setup" "$ROOT/projects/foreign hook"`. The exit code is non-zero. Stdout or stderr contains `A pre-commit hook already exists and was left unchanged:`. The hook file still contains `existing-hook`. `.local/quality` does not exist.
@@ -39,8 +39,9 @@ Project name: `spaced project`. `$PROJECT` is `$ROOT/projects/spaced project`.
 
 ## Gotchas
 
-- `$CHECKER/setup` proves the working tree, including uncommitted edits. `$SOURCE/setup` proves the configured `origin` and skips those edits.
-- Setup refuses to replace a `.local/quality` directory that exists and contains neither `run`, `run.ps1`, nor `java-checkers`. The message contains `Refusing to overwrite`.
+- `$CHECKER/setup` installs the working-tree bytes of the launcher scripts, config, `hook/`, `src/`, `examples/`, and the running binary. Uncommitted edits to those files are installed. Other files, such as `tests/` and `mise.toml`, are not. `$SOURCE/setup` clones `origin`, then copies that same binary. Other uncommitted files in `$SOURCE` are absent.
+- Setup refuses to replace a `.local/quality` directory that contains none of `run`, `run.ps1`, `java-checkers`, and `java-checkers.exe`. The message contains `Refusing to overwrite`. A directory that has only `java-checkers.exe` is kept, and setup prints `Checkers are already installed.`
+- A path with no `.git` file or directory fails before anything is copied. The message contains `Not a git repository`.
 - A hook that already mentions `.local/quality/run`, `.local/quality/run.cmd`, `.local/quality/run.ps1`, or `java-checkers` is updated in place. Any other existing hook is left unchanged.
 - `-Branch` is ignored on the no-origin copy path.
 - Do not run setup against the java-checkers checkout unless that checkout is itself the project's `.local/quality`.

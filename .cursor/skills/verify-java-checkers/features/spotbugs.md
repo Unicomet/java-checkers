@@ -41,15 +41,16 @@ public final class Staged {
 ```
 
 Write `src/main/java/verification/Unstaged.java` with `Unstaged` in place of `Staged` and the same `value == "bad"` comparison. Stage only `Staged.java`. Run `verify-java-checkers record "spotbugs maven" -- ./.local/quality/run -Tool spotbugs -PreCommit`. The exit code is non-zero. Stdout contains `Running spotbugs:check` and `FAILED: SpotBugs`. `target/spotbugsXml.xml` exists. Its `BugInstance` class names are `verification.Staged$Nested` and do not include `verification.Unstaged`. Copy the report to `$EVIDENCE/spotbugs maven/spotbugsXml.xml`. `pom.xml` is unchanged and `.quality-pom.xml` is gone.
-- **Fix the staged bug.** Replace `value == "bad"` with `"bad".equals(value)` in `Staged.java`, stage that file, and leave `Unstaged.java` unstaged. Run the same `-Tool spotbugs -PreCommit` command. Exit `0`. Stdout contains `PASSED: SpotBugs`. The report does not list `verification.Unstaged`.
+- **Fix the staged bug.** Replace `value == "bad"` with `"bad".equals(value)` in `Staged.java`, stage that file, and leave `Unstaged.java` unstaged. Run the same `-Tool spotbugs -PreCommit` command. Exit `0`. Stdout contains `PASSED: SpotBugs`. The `BugInstance` class names do not include `verification.Unstaged`.
 - **Full run.** Run `verify-java-checkers record "spotbugs maven" -- ./.local/quality/run -Tool spotbugs`. The exit code is non-zero while `Unstaged.java` still contains `value == "bad"`. The report includes `verification.Unstaged`.
 - **Gradle report.** On a project created from `examples/gradle` with a generated wrapper, use package `demo` and the same nested class. Run `verify-java-checkers record "spotbugs gradle" -- ./.local/quality/run -Tool spotbugs -PreCommit`. The exit code is non-zero. `build/reports/local-quality/spotbugs.xml` lists `demo.Staged$Nested` and does not list the unstaged class. `build.gradle` and `settings.gradle` are unchanged.
 
 ## Gotchas
 
-- SpotBugs compiles the project. The first run downloads dependencies and needs network access.
-- The string comparison is also a Checkstyle violation when Checkstyle runs. `-Tool spotbugs` does not run Checkstyle. `git commit` runs both.
-- Pre-commit selection includes the nested class. The report name uses `$`, as in `verification.Staged$Nested`.
+- SpotBugs compiles the project. The first run downloads dependencies and needs network access. Maven still compiles every file under the source root, so an unstaged `.java` file is compiled even when `-PreCommit` will not report it.
+- The string comparison is also a Checkstyle violation when Checkstyle runs. `-Tool spotbugs` does not run Checkstyle. `git commit` runs both. The finding type for `value == "bad"` on a parameter is `ES_COMPARING_PARAMETER_STRING_WITH_EQ`.
+- Pre-commit selection includes the nested class. The report name uses `$`, as in `verification.Staged$Nested`. Judge that by the `BugInstance` class name. `ClassStats` can still name `verification.Unstaged` with `bugs='0'`.
 - An untracked file is invisible to `-PreCommit` and visible to a full run. Delete it before expecting a full run to pass.
-- `spotbugs-exclude.xml` in the installed copy is empty, so the default detectors run. A filter added only in the checkout after launch is not in the installation.
+- The installed `spotbugs-exclude.xml` filters `EI_EXPOSE_REP2` only. The string comparison above is not filtered. A filter added only in the checkout after launch is not in the installation.
+- A pre-commit run drops paths containing `/notification/avro/`. A full Maven SpotBugs run does not. Gradle `qualitySpotbugs` skips those paths for both a full run and a pre-commit run.
 - Gradle takes precedence over Maven when both build files exist. The Gradle report path is `build/reports/local-quality/spotbugs.xml`, not `target/spotbugsXml.xml`.
